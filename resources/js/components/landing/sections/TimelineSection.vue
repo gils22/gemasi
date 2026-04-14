@@ -1,7 +1,21 @@
 ﻿<script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from "vue";
+import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
 
-const steps = [
+type LandingTimeline = {
+    id: number;
+    judul: string;
+    mulai_pada: string | null;
+    selesai_pada: string | null;
+    is_tba: boolean;
+    deskripsi?: string | null;
+    urutan?: number | null;
+};
+
+const props = defineProps<{
+    items?: LandingTimeline[];
+}>();
+
+const fallbackSteps = [
     { title: "Opening GEMASI", date: "1 Februari 2026" },
     { title: "Pendaftaran GEMASI", date: "1–28 Februari 2026" },
     { title: "Penjurian Tahap 1", date: "2–6 Maret 2026" },
@@ -9,6 +23,33 @@ const steps = [
     { title: "Penjurian Tahap 2", date: "10 Maret 2026" },
     { title: "Awarding GEMASI", date: "16 Maret 2026" },
 ];
+
+const formatDate = (value: string | null) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+    });
+};
+
+const steps = computed(() => {
+    if (!props.items || props.items.length === 0) {
+        return fallbackSteps;
+    }
+
+    return props.items.map((item) => {
+        if (item.is_tba) {
+            return { title: item.judul, date: "TBA" };
+        }
+        const start = formatDate(item.mulai_pada);
+        const end = formatDate(item.selesai_pada);
+        const date = start && end && start !== end ? `${start} – ${end}` : start || end;
+        return { title: item.judul, date: date || "TBA" };
+    });
+});
 
 const activeIndex = ref(0);
 const wrapperRef = ref<HTMLElement | null>(null);
@@ -50,7 +91,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <section id="timeline" class="bg-transparent">
+    <section id="timeline" class="reveal bg-transparent" data-reveal>
         <div class="mx-auto w-full max-w-6xl px-6 py-16">
             <div class="text-center flex flex-col gap-3 text-slate-900">
                 <h2 class="text-3xl font-semibold">Timeline</h2>
@@ -62,11 +103,11 @@ onUnmounted(() => {
                 />
 
                 <div class="space-y-14">
-                    <div
-                        v-for="(step, index) in steps"
-                        :key="step.title"
-                        data-step
-                        :data-index="index"
+                <div
+                    v-for="(step, index) in steps"
+                    :key="step.title"
+                    data-step
+                    :data-index="index"
                         class="relative grid items-start gap-6 grid-cols-[1fr_auto_1fr]"
                     >
                         <div

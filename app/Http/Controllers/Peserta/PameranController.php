@@ -96,6 +96,7 @@ class PameranController extends Controller
                     'id' => $item->id,
                     'nama_karya' => $item->nama_karya,
                     'nama_kategori' => $item->nama_kategori,
+                    'anggota_tim' => $item->anggota_tim,
                     'pameran_logo_name' => $item->pameran_logo_nama_asli,
                     'pameran_logo_url' => $item->pameran_logo_path
                         ? route('peserta.pameran.logo.preview', ['karya' => $item->id])
@@ -129,18 +130,6 @@ class PameranController extends Controller
             'pameran_link_video' => 'nullable|string|max:2048',
             'pameran_ringkasan' => 'nullable|string|max:2000',
         ]);
-
-        $validator->after(function ($validator) use ($request) {
-            $ringkasan = trim((string) $request->input('pameran_ringkasan', ''));
-            if ($ringkasan === '') {
-                return;
-            }
-
-            $wordCount = count(preg_split('/\s+/u', $ringkasan, -1, PREG_SPLIT_NO_EMPTY));
-            if ($wordCount > 150) {
-                $validator->errors()->add('pameran_ringkasan', 'Ringkasan maksimal 150 kata.');
-            }
-        });
 
         $validated = $validator->validate();
 

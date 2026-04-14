@@ -29,8 +29,11 @@ const quickLinks = [
 </script>
 
 <template>
-    <header class="fixed inset-x-0 top-0 z-50 bg-transparent">
-        <div class="backdrop-blur-md bg-white/35 relative">
+    <header
+        class="reveal--nav fixed inset-x-0 top-0 z-50 bg-white/70 backdrop-blur-md"
+        data-reveal
+    >
+        <div class="relative">
             <div class="max-w-6xl mx-auto px-4 sm:px-6">
                 <div
                     class="h-14 sm:h-16 flex items-center border-b border-white/60"

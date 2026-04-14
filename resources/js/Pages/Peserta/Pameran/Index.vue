@@ -19,6 +19,7 @@ type NominasiItem = {
     id: number;
     nama_karya: string;
     nama_kategori: string;
+    anggota_tim?: Array<{ nama?: string; nim?: string }>;
     pameran_logo_name: string | null;
     pameran_logo_url: string | null;
     pameran_link_video: string | null;
@@ -106,17 +107,10 @@ const simpanLink = (item: NominasiItem) => {
     const state = ensureState(item);
     modalAttempt[item.id] = true;
     const missingLogo = !state.logo && !item.pameran_logo_name;
-    const missingRingkasan = !state.ringkasan.trim();
-    const ringkasanWordCount = state.ringkasan
-        ? state.ringkasan.trim().split(/\s+/).filter(Boolean).length
-        : 0;
-    const ringkasanOver = ringkasanWordCount > 150;
     const missingVideo = !state.linkVideo.trim();
-    if (missingLogo || missingRingkasan || missingVideo || ringkasanOver) {
+    if (missingLogo || missingVideo) {
         toast.error(
-            ringkasanOver
-                ? "Ringkasan maksimal 150 kata."
-                : "Lengkapi semua field pameran yang wajib diisi.",
+            "Lengkapi semua field pameran yang wajib diisi.",
         );
         return;
     }
@@ -207,119 +201,131 @@ const getVideoPreview = (url: string) => {
 
         <div
             v-else
-            class="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3"
+            class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
         >
             <article
                 v-for="item in nominasiData"
                 :key="item.id"
-                class="rounded-lg border border-slate-200 bg-white overflow-hidden"
+                class="rounded-lg border border-slate-200 bg-white overflow-hidden p-4 space-y-3"
             >
-                <div
-                    class="aspect-[16/9] bg-slate-100 flex items-center justify-center p-1.5"
-                >
-                    <img
-                        v-if="item.pameran_logo_url"
-                        :src="item.pameran_logo_url"
-                        alt="Logo"
-                        class="h-full w-full object-contain"
-                    />
-                    <span v-else class="text-xs text-slate-400"
-                        >Logo belum ada</span
+                <div class="flex items-start justify-between gap-2">
+                    <div class="text-xs text-slate-500">
+                        {{ item.nama_kategori }}
+                    </div>
+                    <Badge
+                        :variant="
+                            item.pameran_submitted_at
+                                ? 'success'
+                                : 'destructive'
+                        "
                     >
+                        {{
+                            item.pameran_submitted_at
+                                ? "Terkirim"
+                                : "Belum mengirim"
+                        }}
+                    </Badge>
                 </div>
 
-                <div class="p-3 space-y-2.5">
-                    <div class="flex items-start justify-between gap-2">
-                        <div class="space-y-0.5">
-                            <h2 class="text-sm font-semibold text-slate-900">
-                                {{ item.nama_karya }}
-                            </h2>
-                            <p class="text-xs text-slate-500">
-                                {{ item.nama_kategori }}
-                            </p>
-                        </div>
-                        <Badge
-                            :variant="
-                                item.pameran_submitted_at
-                                    ? 'success'
-                                    : 'destructive'
-                            "
-                        >
+                <div class="flex items-start gap-3">
+                    <div
+                        class="flex h-14 w-14 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-400"
+                    >
+                        <img
+                            v-if="item.pameran_logo_url"
+                            :src="item.pameran_logo_url"
+                            alt="Logo"
+                            class="h-full w-full rounded-lg object-contain p-1"
+                        />
+                        <span v-else>
                             {{
-                                item.pameran_submitted_at
-                                    ? "Terkirim"
-                                    : "Belum mengirim"
+                                item.nama_karya
+                                    ? item.nama_karya.slice(0, 2).toUpperCase()
+                                    : "GK"
                             }}
-                        </Badge>
+                        </span>
                     </div>
-
-                    <p class="text-sm text-slate-700 line-clamp-2">
-                        {{ item.pameran_ringkasan ?? "Ringkasan belum diisi." }}
-                    </p>
-
-                    <div class="flex items-center justify-between gap-2">
-                        <div class="text-xs text-slate-500">
+                    <div>
+                        <h2 class="text-sm font-semibold text-slate-900">
+                            {{ item.nama_karya }}
+                        </h2>
+                        <p class="text-xs text-slate-500">
                             {{
-                                item.pameran_submitted_at
-                                    ? `Terakhir diperbarui: ${item.pameran_submitted_at}`
-                                    : "Belum mengirim data pameran"
+                                item.pameran_ringkasan ??
+                                "Deskripsi karya belum tersedia."
                             }}
-                        </div>
-                        <a
-                            v-if="item.pameran_link_video"
-                            :href="item.pameran_link_video"
-                            target="_blank"
-                            class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-600"
-                        >
-                            Lihat Video
-                            <div class="h-10 w-16 rounded bg-white overflow-hidden flex items-center justify-center">
-                                <img
-                                    v-if="
-                                        getVideoPreview(item.pameran_link_video)
-                                            .length
-                                    "
-                                    :src="getVideoPreview(item.pameran_link_video)"
-                                    alt="Preview video"
-                                    class="h-full w-full object-contain"
-                                />
-                            </div>
-                        </a>
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-xs text-slate-500">Anggota Tim</p>
+                    <div
+                        v-if="item.anggota_tim?.length"
+                        class="space-y-1 text-sm text-slate-800"
+                    >
                         <div
-                            v-else
-                            class="inline-flex items-center justify-center h-10 w-16 rounded border border-dashed border-slate-200 bg-slate-50 text-[10px] text-slate-400"
+                            v-for="(anggota, aidx) in item.anggota_tim"
+                            :key="`anggota-${item.id}-${aidx}`"
+                            class="flex items-center justify-between gap-2"
                         >
-                            Video
+                            <span class="font-medium">
+                                {{ anggota.nama ?? "-" }}
+                            </span>
+                            <span class="text-xs text-slate-500">
+                                {{ anggota.nim ?? "" }}
+                            </span>
                         </div>
                     </div>
+                    <p v-else class="text-xs text-slate-400">
+                        Anggota belum terisi.
+                    </p>
+                </div>
 
-                    <div class="flex justify-end">
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger as-child>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        :disabled="!bolehEdit"
-                                        @click="openEdit(item)"
-                                    >
-                                        <SquarePen
-                                            v-if="item.pameran_submitted_at"
-                                            class="h-4 w-4"
-                                        />
-                                        <Plus v-else class="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    {{
-                                        item.pameran_submitted_at
-                                            ? "Edit data pameran"
-                                            : "Isi data pameran"
-                                    }}
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    </div>
+                <a
+                    v-if="item.pameran_link_video"
+                    :href="item.pameran_link_video"
+                    target="_blank"
+                    class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                >
+                    Lihat Video Demo
+                </a>
+                <Button
+                    v-else
+                    variant="outline"
+                    class="w-full rounded-lg text-xs text-slate-500 border-slate-200"
+                    disabled
+                >
+                    Video Demo Belum Tersedia
+                </Button>
+
+                <div class="flex justify-end">
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger as-child>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    :disabled="!bolehEdit"
+                                    @click="openEdit(item)"
+                                >
+                                    <SquarePen
+                                        v-if="item.pameran_submitted_at"
+                                        class="h-4 w-4"
+                                    />
+                                    <Plus v-else class="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                {{
+                                    item.pameran_submitted_at
+                                        ? "Edit data pameran"
+                                        : "Isi data pameran"
+                                }}
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
 
                 <PameranModal

@@ -27,4 +27,14 @@ export interface PageProps extends InertiaPageProps {
     app?: {
         logo?: string;
     };
+    landing?: {
+        hero_badge: string | null;
+        hero_title: string | null;
+        hero_subtitle: string | null;
+        about_text: string | null;
+        cta_badge: string | null;
+        cta_label: string | null;
+        cta_url: string | null;
+        faq_items: Array<{ q: string; a: string }>;
+    } | null;
 }

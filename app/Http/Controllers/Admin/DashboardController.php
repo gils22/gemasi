@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Edition;
 use App\Models\KaryaPeserta;
+use App\Models\KategoriLomba;
 use App\Models\PenilaianTahapDua;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
@@ -104,6 +106,46 @@ class DashboardController extends Controller
             ->distinct()
             ->count('karya_peserta_id');
 
+        $kategoriCounts = KaryaPeserta::query()
+            ->select('kategori_lomba_id', DB::raw('count(*) as total'))
+            ->where('edisi_lomba_id', $edisi->id)
+            ->groupBy('kategori_lomba_id')
+            ->pluck('total', 'kategori_lomba_id');
+
+        $kategoriStats = KategoriLomba::query()
+            ->where('edisi_lomba_id', $edisi->id)
+            ->orderBy('urutan')
+            ->get(['id', 'nama'])
+            ->map(function ($kategori) use ($kategoriCounts) {
+                return [
+                    'id' => $kategori->id,
+                    'nama' => $kategori->nama,
+                    'total' => (int) ($kategoriCounts[$kategori->id] ?? 0),
+                ];
+            })
+            ->values();
+
+        $weather = null;
+        try {
+            $response = Http::timeout(5)->get('https://api.open-meteo.com/v1/forecast', [
+                'latitude' => -7.7956,
+                'longitude' => 110.3695,
+                'current' => 'weathercode,is_day',
+                'timezone' => 'Asia/Bangkok',
+            ]);
+            if ($response->ok()) {
+                $current = $response->json('current');
+                if (is_array($current)) {
+                    $weather = [
+                        'code' => $current['weathercode'] ?? null,
+                        'is_day' => $current['is_day'] ?? null,
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            $weather = null;
+        }
+
         return Inertia::render('Admin/Dashboard', [
             'statistik' => [
                 'total_user' => $totalUser,
@@ -124,6 +166,8 @@ class DashboardController extends Controller
                 'status' => $edisi->status,
                 'aktif' => (bool) $edisi->aktif,
             ],
+            'weather' => $weather,
+            'kategoriStats' => $kategoriStats,
         ]);
     }
 }

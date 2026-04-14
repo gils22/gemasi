@@ -128,7 +128,10 @@ defineOptions({
             </template>
 
             <template #deskripsi="{ row }: { row: Kategori }">
-                <span class="text-sm text-slate-600">
+                <span
+                    class="block max-w-[320px] truncate text-sm text-slate-600 sm:max-w-[420px] lg:max-w-[520px]"
+                    :title="row.deskripsi || '-'"
+                >
                     {{ row.deskripsi || "-" }}
                 </span>
             </template>

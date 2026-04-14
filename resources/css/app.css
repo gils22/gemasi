@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -9,9 +10,9 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif,
-        "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
-        "Noto Color Emoji";
+    --font-sans:
+        "Geist", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+        "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 @theme inline {
@@ -121,12 +122,105 @@
     --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+.reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 600ms ease, transform 600ms ease;
+    will-change: opacity, transform;
+}
+
+.reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.reveal--hero {
+    opacity: 0;
+    transform: translateY(26px);
+    transition: opacity 700ms ease, transform 700ms ease;
+    will-change: opacity, transform;
+}
+
+.reveal--hero.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.hero-blur {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(12px);
+}
+
+.reveal--hero.is-visible .hero-blur {
+    animation: hero-blur-in 700ms ease forwards;
+}
+
+.hero-blur.delay-1 {
+    animation-delay: 120ms;
+}
+
+.hero-blur.delay-2 {
+    animation-delay: 260ms;
+}
+
+.hero-blur.delay-3 {
+    animation-delay: 400ms;
+}
+
+.reveal--nav {
+    opacity: 0;
+    transform: translateY(-14px);
+    transition: opacity 500ms ease, transform 500ms ease;
+    will-change: opacity, transform;
+}
+
+.reveal--nav.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .reveal {
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
+
+    .reveal--hero,
+    .reveal--nav {
+        opacity: 1;
+        transform: none;
+        transition: none;
+    }
+
+    .hero-blur {
+        opacity: 1;
+        filter: none;
+        transform: none;
+        animation: none;
+    }
+}
+
+@keyframes hero-blur-in {
+    0% {
+        opacity: 0;
+        filter: blur(10px);
+        transform: translateY(12px);
+    }
+    100% {
+        opacity: 1;
+        filter: blur(0);
+        transform: translateY(0);
+    }
+}
+
 @layer base {
     * {
         @apply border-border outline-ring/50;
     }
     body {
-        @apply bg-background text-foreground;
+        @apply bg-background text-foreground font-sans;
         scroll-padding-top: 72px;
     }
     button:not(:disabled),
@@ -161,30 +255,6 @@
 .landing-scroll-hidden::-webkit-scrollbar {
     width: 0;
     height: 0;
-}
-
-@keyframes aurora {
-    0% {
-        background-position:
-            0% 50%,
-            0% 50%;
-    }
-    50% {
-        background-position:
-            100% 50%,
-            100% 50%;
-    }
-    100% {
-        background-position:
-            0% 50%,
-            0% 50%;
-    }
-}
-
-@layer utilities {
-    .animate-aurora {
-        animation: aurora 60s linear infinite;
-    }
 }
 
 /* Inertia progress bar color override */

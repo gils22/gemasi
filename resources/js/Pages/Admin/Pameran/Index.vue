@@ -9,9 +9,12 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { computed, ref } from "vue";
-import { usePage } from "@inertiajs/vue3";
+import { Button } from "@/components/ui/button";
+import { computed, reactive, ref, watch } from "vue";
+import { router, usePage } from "@inertiajs/vue3";
 import type { PageProps } from "@/types/inertia";
+import { SquarePen } from "lucide-vue-next";
+import PameranModal from "@/Pages/Peserta/Pameran/PameranModal.vue";
 
 type PameranItem = {
     id: number;
@@ -35,9 +38,17 @@ const page = usePage<
     PageProps & { pameran: PameranItem[]; gemasiAktifLabel: string }
 >();
 
-const data = computed(() => page.props.pameran ?? []);
+const data = ref<PameranItem[]>(page.props.pameran ?? []);
 const kategoriFilter = ref("all");
 const statusFilter = ref("all");
+
+watch(
+    () => page.props.pameran,
+    (val) => {
+        data.value = val ?? [];
+    },
+    { immediate: true },
+);
 
 const kategoriOptions = computed(() => {
     const set = new Set<string>();
@@ -73,15 +84,104 @@ const tableRows = computed(() =>
 );
 
 const columns = [
-    { key: "logo_link", label: "Logo URL" },
-    { key: "logo_preview", label: "Logo" },
     { key: "nama_karya", label: "Karya", sortable: true },
+    { key: "logo_preview", label: "Logo" },
     { key: "tim", label: "Tim", sortable: true },
     { key: "nama_kategori", label: "Kategori", sortable: true },
     { key: "video_link", label: "Video" },
     { key: "ringkasan", label: "Ringkasan" },
-    { key: "status", label: "Status" },
+    { key: "logo_link", label: "Logo URL" },
 ];
+
+const formState = reactive<
+    Record<
+        number,
+        {
+            logo: File | null;
+            logoPreview: string | null;
+            linkVideo: string;
+            ringkasan: string;
+            saving: boolean;
+        }
+    >
+>({});
+const editOpen = reactive<Record<number, boolean>>({});
+const modalAttempt = reactive<Record<number, boolean>>({});
+
+const ensureState = (item: PameranItem) => {
+    if (!formState[item.id]) {
+        formState[item.id] = {
+            logo: null,
+            logoPreview: null,
+            linkVideo: item.pameran_link_video ?? "",
+            ringkasan: item.pameran_ringkasan ?? "",
+            saving: false,
+        };
+    }
+    return formState[item.id];
+};
+
+const handleLogoChange = (item: PameranItem, event: Event) => {
+    const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+    const state = ensureState(item);
+    if (state.logoPreview) {
+        URL.revokeObjectURL(state.logoPreview);
+    }
+    state.logo = file;
+    state.logoPreview = file ? URL.createObjectURL(file) : null;
+    (event.target as HTMLInputElement).value = "";
+};
+
+const openEdit = (item: PameranItem) => {
+    ensureState(item);
+    modalAttempt[item.id] = false;
+    editOpen[item.id] = true;
+};
+
+const simpanPameran = (item: PameranItem) => {
+    const state = ensureState(item);
+    modalAttempt[item.id] = true;
+    const missingLogo = !state.logo && !item.pameran_logo_name;
+    const missingVideo = !state.linkVideo.trim();
+    if (missingLogo || missingVideo) {
+        return;
+    }
+
+    state.saving = true;
+    router.post(
+        `/admin/pameran-karya/${item.id}`,
+        {
+            pameran_logo: state.logo,
+            pameran_link_video: state.linkVideo.trim() || null,
+            pameran_ringkasan: state.ringkasan.trim() || null,
+            _method: "patch",
+        },
+        {
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => {
+                const target = data.value.find((entry) => entry.id === item.id);
+                if (target) {
+                    if (state.logoPreview) {
+                        target.pameran_logo_url = state.logoPreview;
+                    }
+                    if (state.logo) {
+                        target.pameran_logo_name = state.logo.name;
+                    }
+                    target.pameran_link_video = state.linkVideo.trim() || null;
+                    target.pameran_ringkasan = state.ringkasan.trim() || null;
+                    target.pameran_submitted_at = "Baru saja";
+                }
+                editOpen[item.id] = false;
+                modalAttempt[item.id] = false;
+            },
+            onFinish: () => {
+                state.saving = false;
+                editOpen[item.id] = false;
+            },
+        },
+    );
+};
 
 const extractYoutubeId = (url: string) => {
     const normalized = url.trim();
@@ -111,6 +211,12 @@ const getVideoPreview = (url: string) => {
     };
 };
 
+const getEmbedUrl = (url: string) => {
+    const id = extractYoutubeId(url);
+    if (!id) return "";
+    return `https://www.youtube.com/embed/${id}`;
+};
+
 defineOptions({
     layout: (h, page) =>
         h(DashboardLayout, { title: "Pengumpulan Pameran" }, () => page),
@@ -122,7 +228,7 @@ defineOptions({
         <DataTable
             :columns="columns"
             :data="tableRows"
-            :withAction="false"
+            :withAction="true"
             :search-keys="['nama_karya', 'peserta_nama']"
             :hidden-columns="['logo_link']"
             :export-column-keys="columns.map((col) => col.key)"
@@ -153,7 +259,7 @@ defineOptions({
                             <SelectItem value="all">Semua Status</SelectItem>
                             <SelectItem value="lengkap">Lengkap</SelectItem>
                             <SelectItem value="belum-mengirim"
-                                >Belum Mengirim</SelectItem
+                                >Belum Lengkap</SelectItem
                             >
                         </SelectContent>
                     </Select>
@@ -197,10 +303,17 @@ defineOptions({
                 </div>
             </template>
 
-            <template #status="{ row }">
-                <Badge :variant="row.pameran_lengkap ? 'success' : 'secondary'">
-                    {{ row.pameran_lengkap ? "Lengkap" : "Belum mengirim" }}
-                </Badge>
+            <template #nama_karya="{ row }">
+                <div class="space-y-1">
+                    <p class="text-sm font-semibold text-slate-900">
+                        {{ row.nama_karya }}
+                    </p>
+                    <Badge
+                        :variant="row.pameran_lengkap ? 'success' : 'secondary'"
+                    >
+                        {{ row.pameran_lengkap ? "Lengkap" : "Belum lengkap" }}
+                    </Badge>
+                </div>
             </template>
 
             <template #logo_link>
@@ -209,34 +322,41 @@ defineOptions({
 
             <template #video_link="{ row }">
                 <div class="w-full max-w-[220px]">
-                    <a
+                    <div
                         v-if="row.pameran_link_video"
-                        :href="row.pameran_link_video"
-                        target="_blank"
-                        class="block overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
+                        class="overflow-hidden rounded-lg border border-slate-200 bg-slate-50"
                     >
-                        <img
-                            v-if="
-                                getVideoPreview(row.pameran_link_video)
-                                    .thumbnail
+                        <iframe
+                            v-if="getEmbedUrl(row.pameran_link_video)"
+                            :src="getEmbedUrl(row.pameran_link_video)"
+                            class="h-24 w-full"
+                            title="Video demo"
+                            frameborder="0"
+                            allow="
+                                accelerometer;
+                                autoplay;
+                                clipboard-write;
+                                encrypted-media;
+                                gyroscope;
+                                picture-in-picture;
+                                web-share;
                             "
-                            :src="
-                                getVideoPreview(row.pameran_link_video)
-                                    .thumbnail
-                            "
-                            alt="Preview video"
-                            class="h-24 w-full object-cover"
+                            allowfullscreen
                         />
                         <div
                             v-else
                             class="h-24 w-full flex items-center justify-center text-xs text-slate-400"
                         >
-                            Preview video
+                            Preview video tidak tersedia
                         </div>
-                        <div class="px-2 py-1 text-[11px] text-slate-600">
-                            Klik untuk membuka
-                        </div>
-                    </a>
+                        <a
+                            :href="row.pameran_link_video"
+                            target="_blank"
+                            class="text-center block px-2 py-1 text-[11px] text-slate-600 hover:text-slate-900"
+                        >
+                            View Video
+                        </a>
+                    </div>
                     <div
                         v-else
                         class="h-24 w-full rounded-lg border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-xs text-slate-400"
@@ -247,9 +367,28 @@ defineOptions({
             </template>
 
             <template #ringkasan="{ row }">
-                <p class="text-sm text-slate-700 line-clamp-2">
+                <p
+                    class="text-sm text-slate-700 break-words whitespace-pre-line line-clamp-2"
+                    :title="row.pameran_ringkasan || '-'"
+                >
                     {{ row.pameran_ringkasan ?? "-" }}
                 </p>
+            </template>
+
+            <template #actions="{ row }">
+                <Button size="icon" variant="outline" @click="openEdit(row)">
+                    <SquarePen class="h-4 w-4" />
+                </Button>
+                <PameranModal
+                    v-model:open="editOpen[row.id]"
+                    :item="row"
+                    :state="ensureState(row)"
+                    :attempt="modalAttempt[row.id]"
+                    :boleh-edit="true"
+                    :get-video-preview="getVideoPreview"
+                    @logo-change="(e) => handleLogoChange(row, e)"
+                    @save="simpanPameran(row)"
+                />
             </template>
         </DataTable>
     </div>

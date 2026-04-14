@@ -29,6 +29,7 @@ class KaryaPeserta extends Model
         'nilai_tahap_1',
         'catatan_tahap_1',
         'status',
+        'sumber',
         'lolos_nominasi',
         'submitted_at',
     ];

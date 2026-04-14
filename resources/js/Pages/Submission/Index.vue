@@ -3,9 +3,10 @@ import DashboardLayout from "@/Layouts/DashboardLayout.vue";
 import DataTable from "@/components/common/DataTable.vue";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { router, usePage } from "@inertiajs/vue3";
 import { computed, ref } from "vue";
-import { CheckCircle2, Eye, RotateCcw } from "lucide-vue-next";
+import { CheckCircle2, Eye, Plus, RotateCcw, Trash2 } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,6 +22,14 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import type { PageProps } from "@/types/inertia";
 
 type Submission = {
@@ -45,19 +54,28 @@ const page = usePage<
         submissions: Submission[];
         gemasiAktifLabel: string;
         bolehKelola: boolean;
+        bolehLoloskanNominasi?: boolean;
         mode?: "karya" | "nominasi";
+        kategoriOptions: Array<{ id: number; nama: string }>;
     }
 >();
 
 const kategoriFilter = ref<string>("semua");
 const kelengkapanFilter = ref<"semua" | "lengkap" | "belum_lengkap">("semua");
+const nominasiFilter = ref<"semua" | "lolos" | "belum">("semua");
 
 const submissions = computed(() => page.props.submissions ?? []);
 const bolehKelola = computed(() => page.props.bolehKelola === true);
+const bolehLoloskanNominasi = computed(
+    () => page.props.bolehLoloskanNominasi === true,
+);
 const role = computed(() => page.props.auth?.role ?? "admin");
 const isPrivileged = computed(() => role.value === "admin");
-const routePrefix = computed(() => "/admin");
+const routePrefix = computed(() =>
+    role.value === "juri" ? "/juri" : "/admin",
+);
 const mode = computed(() => page.props.mode ?? "karya");
+const kategoriOptions = computed(() => page.props.kategoriOptions ?? []);
 
 const daftarKategori = computed(() => {
     return Array.from(
@@ -79,6 +97,10 @@ const filteredSubmissions = computed(() => {
         const cocokKategori =
             kategoriFilter.value === "semua" ||
             item.nama_kategori === kategoriFilter.value;
+        const cocokNominasi =
+            nominasiFilter.value === "semua" ||
+            (nominasiFilter.value === "lolos" && item.is_lolos_nominasi) ||
+            (nominasiFilter.value === "belum" && !item.is_lolos_nominasi);
         const cocokKelengkapan =
             mode.value === "karya"
                 ? kelengkapanFilter.value === "semua" ||
@@ -87,15 +109,89 @@ const filteredSubmissions = computed(() => {
                   (kelengkapanFilter.value === "belum_lengkap" &&
                       item.status !== "submitted")
                 : true;
-        return cocokKategori && cocokKelengkapan;
+        return cocokKategori && cocokNominasi && cocokKelengkapan;
     });
 });
+
+const openManual = ref(false);
+const isSavingManual = ref(false);
+const manualForm = ref({
+    kategori_lomba_id: "",
+    nama_karya: "",
+    wa_ketua: "",
+    pameran_ringkasan: "",
+    pameran_link_video: "",
+    anggota_tim: [{ nim: "", nama: "", email: "", peran: "ketua" }],
+});
+
+const resetManualForm = () => {
+    manualForm.value = {
+        kategori_lomba_id: "",
+        nama_karya: "",
+        wa_ketua: "",
+        pameran_ringkasan: "",
+        pameran_link_video: "",
+        anggota_tim: [{ nim: "", nama: "", email: "", peran: "ketua" }],
+    };
+};
+
+const tambahAnggotaManual = () => {
+    if (manualForm.value.anggota_tim.length >= 6) return;
+    manualForm.value.anggota_tim.push({
+        nim: "",
+        nama: "",
+        email: "",
+        peran: "anggota",
+    });
+};
+
+const hapusAnggotaManual = (index: number) => {
+    if (manualForm.value.anggota_tim.length <= 1) return;
+    manualForm.value.anggota_tim.splice(index, 1);
+};
+
+const simpanManual = () => {
+    if (!manualForm.value.kategori_lomba_id || !manualForm.value.nama_karya) {
+        toast.error("Lengkapi kategori dan nama karya.");
+        return;
+    }
+    const adaNama = manualForm.value.anggota_tim.every((item) =>
+        item.nama?.trim(),
+    );
+    if (!adaNama) {
+        toast.error("Nama anggota tim wajib diisi.");
+        return;
+    }
+
+    isSavingManual.value = true;
+    router.post(
+        "/admin/submission/manual",
+        {
+            ...manualForm.value,
+            kategori_lomba_id: Number(manualForm.value.kategori_lomba_id),
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success("Karya manual ditambahkan.");
+                openManual.value = false;
+                resetManualForm();
+            },
+            onError: () => {
+                toast.error("Gagal menambahkan karya manual.");
+            },
+            onFinish: () => {
+                isSavingManual.value = false;
+            },
+        },
+    );
+};
 
 const columns = [
     { key: "nama_karya", label: "Karya", sortable: true },
     { key: "peserta", label: "Peserta", sortable: true },
     { key: "nama_kategori", label: "Kategori", sortable: true },
-    { key: "anggota", label: "Anggota Tim" },
+    { key: "status_nominasi", label: "Status Nominasi" },
     { key: "nilai_tahap_1", label: "Nilai Tahap 1", sortable: true },
 ];
 
@@ -120,7 +216,7 @@ const handleBulkDelete = (ids: number[]) => {
 };
 
 const toggleNominasi = (row: Submission) => {
-    if (!bolehKelola.value) return;
+    if (!bolehKelola.value && !bolehLoloskanNominasi.value) return;
     if (!row.is_lolos_nominasi && row.status !== "submitted") {
         toast.error("Hanya submission lengkap yang bisa diloloskan.");
         return;
@@ -207,7 +303,10 @@ defineOptions({
                             </SelectContent>
                         </Select>
 
-                        <Select v-if="mode === 'karya'" v-model="kelengkapanFilter">
+                        <Select
+                            v-if="mode === 'karya'"
+                            v-model="kelengkapanFilter"
+                        >
                             <SelectTrigger class="w-44 h-10 bg-white">
                                 <SelectValue placeholder="Filter Kelengkapan" />
                             </SelectTrigger>
@@ -223,158 +322,196 @@ defineOptions({
                                 >
                             </SelectContent>
                         </Select>
+
+                        <Select v-model="nominasiFilter">
+                            <SelectTrigger class="w-44 h-10 bg-white">
+                                <SelectValue placeholder="Status Nominasi" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="semua"
+                                    >Semua Nominasi</SelectItem
+                                >
+                                <SelectItem value="lolos"
+                                    >Lolos Nominasi</SelectItem
+                                >
+                                <SelectItem value="belum"
+                                    >Belum Nominasi</SelectItem
+                                >
+                            </SelectContent>
+                        </Select>
                     </div>
                 </template>
 
-            <template #peserta="{ row }: { row: Submission }">
-                <div class="flex items-center gap-3 min-w-0">
-                    <Avatar class="h-8 w-8">
-                        <AvatarImage
-                            :src="
-                                row.peserta.avatar ??
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(row.peserta.name ?? 'P')}&background=2563eb&color=fff`
-                            "
-                        />
-                        <AvatarFallback>
-                            {{
-                                (row.peserta.name ?? "P")
-                                    .charAt(0)
-                                    .toUpperCase()
-                            }}
-                        </AvatarFallback>
-                    </Avatar>
-                    <div class="min-w-0">
-                        <p class="truncate font-medium text-slate-800">
-                            {{ row.peserta.name ?? "-" }}
-                        </p>
-                        <p class="truncate text-xs text-slate-500">
-                            {{ row.peserta.email ?? "-" }}
-                        </p>
-                    </div>
-                </div>
-            </template>
+                <template #toolbar-right>
+                    <Button
+                        v-if="mode === 'karya' && bolehKelola"
+                        variant="default"
+                        class="h-10"
+                        @click="openManual = true"
+                    >
+                        <Plus class="h-4 w-4" />
+                        Tambah
+                    </Button>
+                </template>
 
-            <template #nama_karya="{ row }: { row: Submission }">
-                <div class="min-w-0 space-y-1">
-                    <p class="truncate font-medium text-slate-800">
-                        {{ row.nama_karya }}
-                    </p>
+                <template #peserta="{ row }: { row: Submission }">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <Avatar class="h-8 w-8">
+                            <AvatarImage
+                                :src="
+                                    row.peserta.avatar ??
+                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(row.peserta.name ?? 'P')}&background=2563eb&color=fff`
+                                "
+                            />
+                            <AvatarFallback>
+                                {{
+                                    (row.peserta.name ?? "P")
+                                        .charAt(0)
+                                        .toUpperCase()
+                                }}
+                            </AvatarFallback>
+                        </Avatar>
+                        <div class="min-w-0">
+                            <p class="truncate font-medium text-slate-800">
+                                {{ row.peserta.name ?? "-" }}
+                            </p>
+                            <p class="truncate text-xs text-slate-500">
+                                {{ row.peserta.email ?? "-" }}
+                            </p>
+                        </div>
+                    </div>
+                </template>
+
+                <template #nama_karya="{ row }: { row: Submission }">
+                    <div class="min-w-0 space-y-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p class="truncate font-medium text-slate-800">
+                                {{ row.nama_karya }}
+                            </p>
+                        </div>
+                    </div>
+                </template>
+
+                <template #status_nominasi="{ row }: { row: Submission }">
                     <Badge
-                        v-if="mode !== 'nominasi' && row.is_lolos_nominasi"
+                        v-if="row.is_lolos_nominasi"
                         class="bg-emerald-100 text-emerald-700"
                     >
                         Lolos Nominasi
                     </Badge>
-                </div>
-            </template>
+                    <Badge v-else class="bg-slate-100 text-slate-700">
+                        Belum Nominasi
+                    </Badge>
+                </template>
 
-            <template #anggota="{ row }: { row: Submission }">
-                <span class="text-sm text-slate-700"
-                    >{{ row.anggota_tim?.length ?? 0 }} orang</span
-                >
-            </template>
+                <template #nilai_tahap_1="{ row }: { row: Submission }">
+                    <Badge
+                        v-if="row.nilai_tahap_1 !== null"
+                        class="bg-indigo-50 text-indigo-700"
+                    >
+                        {{ row.nilai_tahap_1 }}
+                    </Badge>
+                    <span v-else class="text-sm text-slate-400">-</span>
+                </template>
 
-            <template #nilai_tahap_1="{ row }: { row: Submission }">
-                <Badge
-                    v-if="row.nilai_tahap_1 !== null"
-                    class="bg-indigo-50 text-indigo-700"
-                >
-                    {{ row.nilai_tahap_1 }}
-                </Badge>
-                <span v-else class="text-sm text-slate-400">-</span>
-            </template>
+                <template #actions="{ row }: { row: Submission }">
+                    <TooltipProvider :delay-duration="150">
+                        <div class="flex items-center justify-end gap-1">
+                            <template v-if="mode === 'karya'">
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            class="hidden md:inline-flex"
+                                            @click="openDetail(row)"
+                                        >
+                                            <Eye class="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                </Tooltip>
 
-            <template #actions="{ row }: { row: Submission }">
-                <TooltipProvider :delay-duration="150">
-                    <div class="flex items-center justify-end gap-1">
-                        <template v-if="mode === 'karya'">
-                            <Tooltip>
-                                <TooltipTrigger as-child>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        class="hidden md:inline-flex"
-                                        @click="openDetail(row)"
-                                    >
-                                        <Eye class="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                            </Tooltip>
-
-                            <Tooltip v-if="bolehKelola">
-                                <TooltipTrigger as-child>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        class="hidden md:inline-flex"
-                                        :class="
-                                            row.is_lolos_nominasi
-                                                ? 'text-amber-600 hover:text-amber-700'
-                                                : 'text-emerald-600 hover:text-emerald-700'
-                                        "
-                                        @click="toggleNominasi(row)"
-                                    >
-                                        <RotateCcw
-                                            v-if="row.is_lolos_nominasi"
-                                            class="h-4 w-4"
-                                        />
-                                        <CheckCircle2 v-else class="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>{{
-                                    row.is_lolos_nominasi
-                                        ? "Batalkan nominasi"
-                                        : "Lolos nominasi"
-                                }}</TooltipContent>
-                            </Tooltip>
-
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                class="md:hidden"
-                                @click="openDetail(row)"
-                            >
-                                Lihat
-                            </Button>
-
-                            <Button
-                                v-if="bolehKelola"
-                                variant="outline"
-                                size="sm"
-                                class="md:hidden"
-                                :disabled="
-                                    !row.is_lolos_nominasi &&
-                                    (row.status !== 'submitted' ||
-                                        row.nilai_tahap_1 === null)
-                                "
-                                @click="toggleNominasi(row)"
-                            >
-                                {{
-                                    row.is_lolos_nominasi ? "Batalkan" : "Lolos"
-                                }}
-                            </Button>
-                        </template>
-
-                        <template v-else>
-                            <Tooltip v-if="bolehKelola">
-                                <TooltipTrigger as-child>
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        class="text-amber-600 hover:text-amber-700"
-                                        @click="kembalikanKeKarya(row)"
-                                    >
-                                        <RotateCcw class="h-4 w-4" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                    >Batalkan Nominasi</TooltipContent
+                                <Tooltip
+                                    v-if="bolehKelola || bolehLoloskanNominasi"
                                 >
-                            </Tooltip>
-                        </template>
-                    </div>
-                </TooltipProvider>
-            </template>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            class="hidden md:inline-flex"
+                                            :class="
+                                                row.is_lolos_nominasi
+                                                    ? 'text-amber-600 hover:text-amber-700'
+                                                    : 'text-emerald-600 hover:text-emerald-700'
+                                            "
+                                            @click="toggleNominasi(row)"
+                                        >
+                                            <RotateCcw
+                                                v-if="row.is_lolos_nominasi"
+                                                class="h-4 w-4"
+                                            />
+                                            <CheckCircle2
+                                                v-else
+                                                class="h-4 w-4"
+                                            />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{{
+                                        row.is_lolos_nominasi
+                                            ? "Batalkan nominasi"
+                                            : "Lolos nominasi"
+                                    }}</TooltipContent>
+                                </Tooltip>
+
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    class="md:hidden"
+                                    @click="openDetail(row)"
+                                >
+                                    Lihat
+                                </Button>
+
+                                <Button
+                                    v-if="bolehKelola || bolehLoloskanNominasi"
+                                    variant="outline"
+                                    size="sm"
+                                    class="md:hidden"
+                                    :disabled="
+                                        !row.is_lolos_nominasi &&
+                                        (row.status !== 'submitted' ||
+                                            row.nilai_tahap_1 === null)
+                                    "
+                                    @click="toggleNominasi(row)"
+                                >
+                                    {{
+                                        row.is_lolos_nominasi
+                                            ? "Batalkan"
+                                            : "Lolos"
+                                    }}
+                                </Button>
+                            </template>
+
+                            <template v-else>
+                                <Tooltip v-if="bolehKelola">
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            class="text-amber-600 hover:text-amber-700"
+                                            @click="kembalikanKeKarya(row)"
+                                        >
+                                            <RotateCcw class="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                        >Batalkan Nominasi</TooltipContent
+                                    >
+                                </Tooltip>
+                            </template>
+                        </div>
+                    </TooltipProvider>
+                </template>
             </DataTable>
         </div>
 
@@ -410,7 +547,28 @@ defineOptions({
                         >
                     </SelectContent>
                 </Select>
+
+                <Select v-model="nominasiFilter">
+                    <SelectTrigger class="w-full h-10 bg-white">
+                        <SelectValue placeholder="Status Nominasi" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="semua">Semua Nominasi</SelectItem>
+                        <SelectItem value="lolos">Lolos Nominasi</SelectItem>
+                        <SelectItem value="belum">Belum Nominasi</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
+
+            <Button
+                v-if="mode === 'karya' && bolehKelola"
+                variant="outline"
+                class="h-10"
+                @click="openManual = true"
+            >
+                <Plus class="h-4 w-4" />
+                Tambah Manual
+            </Button>
 
             <div
                 v-for="row in filteredSubmissions"
@@ -427,22 +585,24 @@ defineOptions({
                         />
                         <AvatarFallback>
                             {{
-                                (row.peserta.name ?? 'P')
+                                (row.peserta.name ?? "P")
                                     .charAt(0)
                                     .toUpperCase()
                             }}
                         </AvatarFallback>
                     </Avatar>
                     <div class="min-w-0 flex-1">
-                        <p class="text-sm font-semibold text-slate-900 wrap-break-word">
+                        <p
+                            class="text-sm font-semibold text-slate-900 wrap-break-word"
+                        >
                             {{ row.nama_karya }}
                         </p>
                         <p class="text-xs text-slate-500 wrap-break-word">
                             {{ row.nama_kategori }}
                         </p>
                         <p class="text-xs text-slate-500 wrap-break-word">
-                            {{ row.peserta.name ?? '-' }} �
-                            {{ row.peserta.email ?? '-' }}
+                            {{ row.peserta.name ?? "-" }} �
+                            {{ row.peserta.email ?? "-" }}
                         </p>
                         <Badge
                             v-if="row.is_lolos_nominasi"
@@ -454,22 +614,35 @@ defineOptions({
                 </div>
 
                 <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                    <span>Anggota: {{ row.anggota_tim?.length ?? 0 }} orang</span>
-                    <span>Nilai T1: {{ row.nilai_tahap_1 ?? '-' }}</span>
+                    <span
+                        >Anggota: {{ row.anggota_tim?.length ?? 0 }} orang</span
+                    >
+                    <span>Nilai T1: {{ row.nilai_tahap_1 ?? "-" }}</span>
                 </div>
 
                 <div class="mt-3 flex flex-wrap gap-2">
-                    <Button size="sm" class="w-full" variant="outline" @click="openDetail(row)">
+                    <Button
+                        size="sm"
+                        class="w-full"
+                        variant="outline"
+                        @click="openDetail(row)"
+                    >
                         Lihat
                     </Button>
 
                     <template v-if="mode === 'karya'">
                         <Button
-                            v-if="bolehKelola"
+                            v-if="bolehKelola || bolehLoloskanNominasi"
                             size="sm"
                             class="w-full"
-                            :variant="row.is_lolos_nominasi ? 'outline' : 'default'"
-                            :disabled="!row.is_lolos_nominasi && (row.status !== 'submitted' || row.nilai_tahap_1 === null)"
+                            :variant="
+                                row.is_lolos_nominasi ? 'outline' : 'default'
+                            "
+                            :disabled="
+                                !row.is_lolos_nominasi &&
+                                (row.status !== 'submitted' ||
+                                    row.nilai_tahap_1 === null)
+                            "
                             @click="toggleNominasi(row)"
                         >
                             {{ row.is_lolos_nominasi ? "Batalkan" : "Lolos" }}
@@ -491,5 +664,133 @@ defineOptions({
             </div>
         </div>
     </div>
-</template>
 
+    <Dialog v-model:open="openManual">
+        <DialogContent class="sm:max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>Tambah Karya Manual</DialogTitle>
+                <DialogDescription>
+                    Karya masuk ke edisi aktif dan langsung berstatus submitted.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div class="space-y-4">
+                <div class="grid gap-3 md:grid-cols-2">
+                    <div class="space-y-1">
+                        <label class="text-xs text-slate-500">Kategori</label>
+                        <Select v-model="manualForm.kategori_lomba_id">
+                            <SelectTrigger class="w-full h-10 bg-white">
+                                <SelectValue placeholder="Pilih kategori" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem
+                                    v-for="kategori in kategoriOptions"
+                                    :key="kategori.id"
+                                    :value="String(kategori.id)"
+                                >
+                                    {{ kategori.nama }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs text-slate-500">Nama Karya</label>
+                        <Input
+                            v-model="manualForm.nama_karya"
+                            placeholder="Nama karya"
+                        />
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs text-slate-500">WA Ketua</label>
+                        <Input
+                            v-model="manualForm.wa_ketua"
+                            placeholder="Contoh: 08xxxxxxxxxx"
+                        />
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs text-slate-500"
+                            >Link Video Demo</label
+                        >
+                        <Input
+                            v-model="manualForm.pameran_link_video"
+                            placeholder="https://"
+                        />
+                    </div>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-xs text-slate-500"
+                        >Ringkasan Karya</label
+                    >
+                    <textarea
+                        v-model="manualForm.pameran_ringkasan"
+                        rows="3"
+                        class="w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                        placeholder="Ringkasan singkat karya"
+                    />
+                </div>
+
+                <div class="space-y-2">
+                    <div
+                        class="grid grid-cols-1 md:grid-cols-[1.2fr_1.5fr_2fr_1fr_auto] gap-2 text-[11px] text-slate-500"
+                    >
+                        <span>NIM</span>
+                        <span>Nama</span>
+                        <span>Email</span>
+                        <span>Peran</span>
+                        <span class="text-right">Aksi</span>
+                    </div>
+                    <div
+                        v-for="(anggota, idx) in manualForm.anggota_tim"
+                        :key="idx"
+                        class="grid grid-cols-1 md:grid-cols-[1.2fr_1.5fr_2fr_1fr_auto] gap-2"
+                    >
+                        <Input v-model="anggota.nim" placeholder="NIM" />
+                        <Input v-model="anggota.nama" placeholder="Nama" />
+                        <Input v-model="anggota.email" placeholder="Email" />
+                        <Input v-model="anggota.peran" placeholder="Peran" />
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            class="md:ml-auto"
+                            :disabled="manualForm.anggota_tim.length <= 1"
+                            @click="hapusAnggotaManual(idx)"
+                        >
+                            <Trash2 class="h-4 w-4 text-rose-600" />
+                        </Button>
+                    </div>
+                    <div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            :disabled="manualForm.anggota_tim.length >= 6"
+                            @click="tambahAnggotaManual"
+                        >
+                            <Plus class="h-4 w-4" />
+                            Tambah Anggota
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            <DialogFooter class="gap-2">
+                <Button
+                    type="button"
+                    variant="outline"
+                    @click="openManual = false"
+                >
+                    Batal
+                </Button>
+                <Button
+                    type="button"
+                    :disabled="isSavingManual"
+                    @click="simpanManual"
+                >
+                    Simpan
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+</template>

@@ -52,42 +52,29 @@ export const admin: MenuItem[] = [
         ],
     },
     {
+        label: "Landing",
+        href: "/admin/landing",
+        icon: LayoutDashboard,
+    },
+    {
         label: "Submission",
-        href: "/admin/submission",
+        href: "/admin/submission/karya",
         icon: FileText,
-        children: [
-            {
-                label: "Karya",
-                href: "/admin/submission/karya",
-            },
-            {
-                label: "Nominasi",
-                href: "/admin/submission/nominasi",
-            },
-            {
-                label: "Pameran Karya",
-                href: "/admin/pameran-karya",
-            },
-        ],
+    },
+    {
+        label: "Pameran Karya",
+        href: "/admin/pameran-karya",
+        icon: FileText,
     },
     {
         label: "Penjurian",
         icon: ClipboardCheck,
-        href: "/admin/penjurian/nominasi",
-        children: [
-            {
-                label: "Nominasi",
-                href: "/admin/penjurian/nominasi",
-            },
-            {
-                label: "Rekap Nilai",
-                href: "/admin/penjurian/rekap",
-            },
-            {
-                label: "Pemenang",
-                href: "/admin/pemenang",
-            },
-        ],
+        href: "/admin/penjurian",
+    },
+    {
+        label: "Pemenang",
+        href: "/admin/pemenang",
+        icon: Trophy,
     },
     {
         label: "Manajemen User",

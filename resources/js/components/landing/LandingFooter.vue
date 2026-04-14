@@ -1,12 +1,9 @@
 <script setup lang="ts">
-import {
-    Instagram,
-    Facebook,
-    Linkedin,
-    Youtube,
-    Twitter,
-} from "lucide-vue-next";
+import { Instagram, Facebook, Youtube, Copyright } from "lucide-vue-next";
 import FluidCursor from "@/components/ui/fluid-cursor/FluidCursor.vue";
+
+const logoAmikom = `${import.meta.env.BASE_URL}images/logo-amikom.svg`;
+const logoSi = `${import.meta.env.BASE_URL}images/logo-si.svg`;
 </script>
 
 <template>
@@ -34,17 +31,21 @@ import FluidCursor from "@/components/ui/fluid-cursor/FluidCursor.vue";
                             Presented by
                         </div>
                         <div
-                            class="flex flex-wrap items-center justify-start gap-3"
+                            class="flex flex-wrap items-center justify-start gap-4"
                         >
-                            <div
-                                class="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-600"
-                            >
-                                AMIKOM
+                            <div class="flex h-10 items-center justify-center">
+                                <img
+                                    :src="logoAmikom"
+                                    alt="Logo Amikom"
+                                    class="h-6 w-auto"
+                                />
                             </div>
-                            <div
-                                class="rounded-full border border-slate-200 bg-white/70 px-4 py-2 text-xs font-semibold text-slate-600"
-                            >
-                                Sistem Informasi
+                            <div class="flex h-10 items-center justify-center">
+                                <img
+                                    :src="logoSi"
+                                    alt="Logo Sistem Informasi"
+                                    class="h-6 w-auto"
+                                />
                             </div>
                         </div>
                     </div>
@@ -120,9 +121,9 @@ import FluidCursor from "@/components/ui/fluid-cursor/FluidCursor.vue";
             <div
                 class="mx-auto flex w-full max-w-6xl flex-col gap-3 px-6 py-6 text-xs text-slate-500 md:flex-row md:items-center md:justify-between text-left"
             >
-                <p>
-                    (c) 2026 GEMASI | Sistem Informasi Universitas Amikom
-                    Yogyakarta.
+                <p class="flex items-center gap-2">
+                    <Copyright class="h-3.5 w-3.5 text-slate-400" />
+                    GEMASI | Sistem Informasi Universitas Amikom Yogyakarta.
                 </p>
                 <div
                     class="flex items-center justify-start gap-4 md:justify-end"

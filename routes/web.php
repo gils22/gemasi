@@ -9,6 +9,7 @@ use App\Models\Edition;
 use App\Models\KategoriLomba;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Http\Controllers\KategoriLombaController;
 use App\Http\Controllers\LandingController;
@@ -23,7 +24,10 @@ use App\Http\Controllers\Admin\PemenangController;
 use App\Http\Controllers\SubmissionController;
 use App\Http\Controllers\PenjurianController;
 use App\Http\Controllers\PenugasanJuriController;
+use App\Http\Controllers\JuriDashboardController;
+use App\Http\Controllers\JuriSubmissionController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\LandingSettingController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\EdisiLombaController;
 
@@ -38,9 +42,12 @@ Route::get('/panduan', [LandingController::class, 'panduan'])->name('landing.pan
 Route::get('/pameran', [LandingController::class, 'pameran'])->name('landing.pameran');
 Route::get('/nominate', [LandingController::class, 'nominate'])->name('landing.nominate');
 Route::get('/juara', [LandingController::class, 'juara'])->name('landing.juara');
+Route::get('/juara/{id}', [LandingController::class, 'juaraDetail'])->name('landing.juara.detail');
 
 Route::get('/login', function () {
-    return Inertia::render('Auth/Login');
+    return Inertia::render('Auth/Login', [
+        'isLocal' => app()->environment('local'),
+    ]);
 })->name('login');
 
 
@@ -51,6 +58,7 @@ Route::get('/login', function () {
 */
 
 Route::get('/auth/google/peserta', function () {
+    session(['google_auth_intent' => 'peserta']);
     return Socialite::driver('google')
         ->scopes(['openid', 'profile', 'email'])
         ->with([
@@ -61,13 +69,17 @@ Route::get('/auth/google/peserta', function () {
 });
 
 Route::get('/auth/google/admin', function () {
-    return Socialite::driver('google')
-        ->scopes(['openid', 'profile', 'email'])
-        ->with([
-            'hd' => 'amikom.ac.id',
-            'prompt' => 'select_account',
-        ])
-        ->redirect();
+    session(['google_auth_intent' => 'admin']);
+    $driver = Socialite::driver('google')
+        ->scopes(['openid', 'profile', 'email']);
+    if (app()->environment('local')) {
+        return $driver->with(['prompt' => 'select_account'])->redirect();
+    }
+
+    return $driver->with([
+        'hd' => 'amikom.ac.id',
+        'prompt' => 'select_account',
+    ])->redirect();
 });
 
 Route::get('/auth/google/callback', function () {
@@ -75,6 +87,7 @@ Route::get('/auth/google/callback', function () {
     $googleUser = Socialite::driver('google')->stateless()->user();
 
     $email = $googleUser->getEmail();
+    $intent = session('google_auth_intent', 'peserta');
 
     $avatar = $googleUser->getAvatar();
 
@@ -82,6 +95,15 @@ Route::get('/auth/google/callback', function () {
     $avatar = $avatar ? str_replace('=s96-c', '=s200-c', $avatar) : null;
 
     $existingUser = User::query()->where('email', $email)->first();
+    if ($intent === 'admin') {
+        $isAdminOrJuri = $existingUser?->roles()
+            ->whereIn('name', ['admin', 'juri'])
+            ->exists();
+
+        if (!$isAdminOrJuri && !app()->environment('local')) {
+            return redirect('/login')->with('error', 'Akun belum terdaftar sebagai admin atau juri.');
+        }
+    }
     $resolvedName = $googleUser->getName()
         ?: $existingUser?->name
         ?: Str::before($email, '@');
@@ -98,10 +120,85 @@ Route::get('/auth/google/callback', function () {
         ]
     );
 
-    if (!$user->roles()->exists()) {
+    if ($intent === 'peserta' && !$user->roles()->exists()) {
         $role = Role::where('name', 'peserta')->first();
         if (!$role) {
             abort(500, 'Role peserta belum tersedia. Jalankan seeder roles.');
+        }
+        $user->roles()->attach($role->id);
+    }
+
+    if ($intent === 'admin' && app()->environment('local')) {
+        $hasAdminOrJuri = $user->roles()->whereIn('name', ['admin', 'juri'])->exists();
+        if (!$hasAdminOrJuri) {
+            $adminRole = Role::where('name', 'admin')->first();
+            if ($adminRole) {
+                $user->roles()->attach($adminRole->id);
+            }
+        }
+    }
+
+    $tahunSekarang = (int) now()->format('Y');
+    $edisiAktif = Edition::query()->where('status', 'aktif')->first()
+        ?? Edition::query()->where('aktif', true)->first()
+        ?? Edition::query()->where('tahun', $tahunSekarang)->first()
+        ?? Edition::query()->orderByDesc('tahun')->first();
+
+    if ($edisiAktif) {
+        $roleIds = $user->roles()->pluck('roles.id');
+        if ($roleIds->isNotEmpty()) {
+            $payloadPivot = $roleIds->map(fn($roleId) => [
+                'edisi_lomba_id' => $edisiAktif->id,
+                'user_id' => $user->id,
+                'role_id' => $roleId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])->all();
+
+            DB::table('edisi_lomba_user_role')->upsert(
+                $payloadPivot,
+                ['edisi_lomba_id', 'user_id', 'role_id'],
+                ['updated_at']
+            );
+        }
+
+        session(['edisi_aktif_id' => $edisiAktif->id]);
+    }
+
+    Auth::login($user);
+    return redirect('/redirect-role');
+});
+
+/*
+|--------------------------------------------------------------------------
+| LOCAL DEV LOGIN (ADMIN / JURI)
+|--------------------------------------------------------------------------
+*/
+Route::post('/auth/local', function (Request $request) {
+    if (!app()->environment('local')) {
+        abort(404);
+    }
+
+    $data = $request->validate([
+        'email' => ['required', 'email'],
+        'role' => ['required', 'in:admin,juri'],
+    ]);
+
+    $email = $data['email'];
+    $roleName = $data['role'];
+
+    $user = User::firstOrCreate(
+        ['email' => $email],
+        [
+            'name' => Str::before($email, '@'),
+            'avatar' => 'https://ui-avatars.com/api/?name=' . urlencode(Str::before($email, '@')) . '&background=2563eb&color=fff',
+        ]
+    );
+
+    if (!$user->roles()->where('name', $roleName)->exists()) {
+        $role = Role::where('name', $roleName)->first();
+        if (!$role) {
+            abort(500, "Role {$roleName} belum tersedia. Jalankan seeder roles.");
         }
         $user->roles()->attach($role->id);
     }
@@ -135,7 +232,7 @@ Route::get('/auth/google/callback', function () {
 
     Auth::login($user);
     return redirect('/redirect-role');
-});
+})->name('auth.local');
 
 /*
 |--------------------------------------------------------------------------
@@ -312,6 +409,8 @@ Route::middleware(['auth', 'role:admin'])
             ->name('admin.submission.nominasi');
         Route::delete('/submission/bulk-delete', [SubmissionController::class, 'bulkDestroy'])
             ->name('admin.submission.bulkDelete');
+        Route::post('/submission/manual', [SubmissionController::class, 'storeManual'])
+            ->name('admin.submission.manual');
         Route::patch('/submission/{karya}/lolos-nominasi', [SubmissionController::class, 'lolosNominasi'])
             ->name('admin.submission.lolosNominasi');
         Route::patch('/submission/{karya}/batalkan-nominasi', [SubmissionController::class, 'batalkanNominasi'])
@@ -329,6 +428,8 @@ Route::middleware(['auth', 'role:admin'])
 
         Route::get('/pameran-karya', [AdminPameranController::class, 'index'])
             ->name('admin.pameran.index');
+        Route::patch('/pameran-karya/{karya}', [AdminPameranController::class, 'update'])
+            ->name('admin.pameran.update');
         Route::get('/pameran-karya/{karya}/logo', [AdminPameranController::class, 'previewLogo'])
             ->name('admin.pameran.logo.preview');
 
@@ -341,23 +442,26 @@ Route::middleware(['auth', 'role:admin'])
             ->name('admin.penjurian.penugasan.update');
         Route::get('/penjurian/nominasi', [PenjurianController::class, 'nominasi'])
             ->name('admin.penjurian.nominasi');
+        Route::get('/penjurian/detail/{karya}', [PenjurianController::class, 'detail'])
+            ->name('admin.penjurian.detail');
         Route::get('/penjurian/nilai/{karya}', [PenjurianController::class, 'nilai'])
             ->name('admin.penjurian.nilai');
         Route::post('/penjurian/nilai/{karya}', [PenjurianController::class, 'simpanNilai'])
             ->name('admin.penjurian.nilai.simpan');
         Route::get('/penjurian/rekap', [PenjurianController::class, 'rekap'])
             ->name('admin.penjurian.rekap');
+        Route::get('/penjurian/lampiran/{lampiran}/preview', [PenjurianController::class, 'previewLampiran'])
+            ->name('admin.penjurian.lampiran.preview');
 
         Route::get('/pemenang', [PemenangController::class, 'index'])
             ->name('admin.pemenang.index');
         Route::post('/pemenang/tetapkan', [PemenangController::class, 'tetapkan'])
             ->name('admin.pemenang.tetapkan');
-        Route::post('/pemenang/arsip', [PemenangController::class, 'storeArsip'])
-            ->name('admin.pemenang.arsip.store');
-        Route::put('/pemenang/arsip/{arsip}', [PemenangController::class, 'updateArsip'])
-            ->name('admin.pemenang.arsip.update');
-        Route::delete('/pemenang/arsip/{arsip}', [PemenangController::class, 'destroyArsip'])
-            ->name('admin.pemenang.arsip.destroy');
+
+        Route::get('/landing', [LandingSettingController::class, 'index'])
+            ->name('admin.landing.index');
+        Route::put('/landing', [LandingSettingController::class, 'update'])
+            ->name('admin.landing.update');
 
         // CRUD USER (SATU SUMBER)
         Route::post('/users', [UserController::class, 'store'])
@@ -376,19 +480,37 @@ Route::middleware(['auth', 'role:admin'])
 Route::middleware(['auth', 'role:juri'])
     ->prefix('juri')
     ->group(function () {
-        Route::get('/', function () {
-            return Inertia::render('Juri/Dashboard');
-        })->name('juri.dashboard');
+        Route::get('/', [JuriDashboardController::class, 'index'])
+            ->name('juri.dashboard');
+
+        Route::get('/submission', [JuriSubmissionController::class, 'index'])
+            ->name('juri.submission.index');
+        Route::get('/submission/karya', [JuriSubmissionController::class, 'karya'])
+            ->name('juri.submission.karya');
+        Route::patch('/submission/{karya}/lolos-nominasi', [JuriSubmissionController::class, 'lolosNominasi'])
+            ->name('juri.submission.lolosNominasi');
+        Route::patch('/submission/{karya}/batalkan-nominasi', [JuriSubmissionController::class, 'batalkanNominasi'])
+            ->name('juri.submission.batalkanNominasi');
+        Route::patch('/submission/{karya}/nilai-tahap-1', [JuriSubmissionController::class, 'updateNilaiTahapSatu'])
+            ->name('juri.submission.nilaiTahapSatu');
+        Route::get('/submission/{karya}', [JuriSubmissionController::class, 'show'])
+            ->name('juri.submission.show');
+        Route::get('/submission/lampiran/{lampiran}/preview', [JuriSubmissionController::class, 'previewLampiran'])
+            ->name('juri.submission.lampiran.preview');
 
         Route::get('/penjurian', function () {
             return redirect()->route('juri.penjurian.nominasi');
         })->name('juri.penjurian.index');
         Route::get('/penjurian/nominasi', [PenjurianController::class, 'nominasi'])
             ->name('juri.penjurian.nominasi');
+        Route::get('/penjurian/detail/{karya}', [PenjurianController::class, 'detail'])
+            ->name('juri.penjurian.detail');
         Route::get('/penjurian/nilai/{karya}', [PenjurianController::class, 'nilai'])
             ->name('juri.penjurian.nilai');
         Route::post('/penjurian/nilai/{karya}', [PenjurianController::class, 'simpanNilai'])
             ->name('juri.penjurian.nilai.simpan');
         Route::get('/penjurian/rekap', [PenjurianController::class, 'rekap'])
             ->name('juri.penjurian.rekap');
+        Route::get('/penjurian/lampiran/{lampiran}/preview', [PenjurianController::class, 'previewLampiran'])
+            ->name('juri.penjurian.lampiran.preview');
     });

@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\BobotPenilaianKategori;
 use App\Models\Edition;
 use App\Models\KaryaPeserta;
+use App\Models\LampiranKaryaPeserta;
 use App\Models\PenilaianTahapDua;
 use App\Models\PenugasanJuriKategori;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -109,11 +111,18 @@ class PenjurianController extends Controller
         $juriId = (int) $request->user()->id;
         $isAdmin = $this->isPrivileged($request);
 
-        $penilaianGrouped = PenilaianTahapDua::query()
+        $penilaianGroupedAll = PenilaianTahapDua::query()
             ->where('edisi_lomba_id', $edisi->id)
-            ->when(!$isAdmin, fn ($q) => $q->where('juri_id', $juriId))
-            ->get(['karya_peserta_id', 'total_nilai'])
+            ->get(['karya_peserta_id', 'total_nilai', 'juri_id'])
             ->groupBy('karya_peserta_id');
+
+        $penilaianGroupedSelf = $isAdmin
+            ? $penilaianGroupedAll
+            : PenilaianTahapDua::query()
+                ->where('edisi_lomba_id', $edisi->id)
+                ->where('juri_id', $juriId)
+                ->get(['karya_peserta_id', 'total_nilai', 'juri_id'])
+                ->groupBy('karya_peserta_id');
 
         $karya = KaryaPeserta::query()
             ->with('peserta:id,name,email,avatar')
@@ -138,11 +147,12 @@ class PenjurianController extends Controller
             ->orderBy('nama_kategori')
             ->orderBy('nama_karya')
             ->get()
-            ->map(function (KaryaPeserta $item) use ($prefix, $penilaianGrouped) {
-                $rows = $penilaianGrouped->get($item->id, collect());
-                $count = $rows->count();
-                $avg = $count > 0 ? round((float) $rows->avg('total_nilai'), 2) : null;
-                $sum = $count > 0 ? round((float) $rows->sum('total_nilai'), 2) : null;
+            ->map(function (KaryaPeserta $item) use ($prefix, $penilaianGroupedAll, $penilaianGroupedSelf) {
+                $rowsAll = $penilaianGroupedAll->get($item->id, collect());
+                $countAll = $rowsAll->count();
+                $avgAll = $countAll > 0 ? round((float) $rowsAll->avg('total_nilai'), 2) : null;
+                $sumAll = $countAll > 0 ? round((float) $rowsAll->sum('total_nilai'), 2) : null;
+
                 return [
                     'id' => $item->id,
                     'nama_karya' => $item->nama_karya,
@@ -152,11 +162,12 @@ class PenjurianController extends Controller
                         'email' => $item->peserta?->email,
                         'avatar' => $item->peserta?->avatar,
                     ],
-                    'sudah_dinilai' => $count > 0,
-                    'total_nilai' => $sum,
-                    'rata_rata' => $avg,
-                    'jumlah_penilai' => $count,
+                    'sudah_dinilai' => $countAll > 0,
+                    'total_nilai' => $sumAll,
+                    'rata_rata' => $avgAll,
+                    'jumlah_penilai' => $countAll,
                     'url_nilai' => "/{$prefix}/penjurian/nilai/{$item->id}",
+                    'url_detail' => "/{$prefix}/penjurian/detail/{$item->id}",
                 ];
             })
             ->values();
@@ -279,6 +290,72 @@ class PenjurianController extends Controller
         ]);
     }
 
+    public function detail(Request $request, KaryaPeserta $karya)
+    {
+        $edisi = $this->resolveEdisiKonteks($request);
+        abort_unless($this->bolehAkses($request, (int) $edisi->id), 403);
+        abort_if((int) $karya->edisi_lomba_id !== (int) $edisi->id, 404);
+        abort_unless($karya->status === 'submitted' && (bool) $karya->lolos_nominasi, 404);
+        abort_unless(
+            $this->juriBolehNilaiKategori($request, (int) $edisi->id, (int) $karya->kategori_lomba_id),
+            403
+        );
+
+        $prefix = (string) $request->segment(1);
+        $karya->load(['peserta:id,name,email,avatar', 'lampiran:id,karya_peserta_id,nama_asli,deskripsi']);
+        $penilaianRows = PenilaianTahapDua::query()
+            ->where('edisi_lomba_id', $edisi->id)
+            ->where('karya_peserta_id', $karya->id)
+            ->get(['total_nilai']);
+        $count = $penilaianRows->count();
+        $avg = $count > 0 ? round((float) $penilaianRows->avg('total_nilai'), 2) : null;
+        $sum = $count > 0 ? round((float) $penilaianRows->sum('total_nilai'), 2) : null;
+
+        return response()->json([
+            'karya' => [
+                'id' => $karya->id,
+                'nama_karya' => $karya->nama_karya,
+                'nama_kategori' => $karya->nama_kategori,
+                'peserta' => [
+                    'name' => $karya->peserta?->name,
+                    'email' => $karya->peserta?->email,
+                    'avatar' => $karya->peserta?->avatar,
+                ],
+                'anggota_tim' => $karya->anggota_tim ?? [],
+                'total_nilai' => $sum,
+                'rata_rata' => $avg,
+                'lampiran' => $karya->lampiran->map(fn (LampiranKaryaPeserta $lampiran) => [
+                    'id' => $lampiran->id,
+                    'nama' => $lampiran->nama_asli,
+                    'deskripsi' => $lampiran->deskripsi,
+                    'url' => "/{$prefix}/penjurian/lampiran/{$lampiran->id}/preview",
+                ])->values(),
+            ],
+            'gemasiAktifLabel' => $edisi->nama . ' (' . $edisi->tahun . ')',
+        ]);
+    }
+
+    public function previewLampiran(Request $request, LampiranKaryaPeserta $lampiran)
+    {
+        $karya = $lampiran->karya;
+        abort_unless($karya, 404);
+        $edisi = $this->resolveEdisiKonteks($request);
+        abort_unless($this->bolehAkses($request, (int) $edisi->id), 403);
+        abort_if((int) $karya->edisi_lomba_id !== (int) $edisi->id, 404);
+        abort_unless($karya->status === 'submitted' && (bool) $karya->lolos_nominasi, 404);
+        abort_unless(
+            $this->juriBolehNilaiKategori($request, (int) $edisi->id, (int) $karya->kategori_lomba_id),
+            403
+        );
+        abort_unless(Storage::disk('public')->exists($lampiran->path_file), 404);
+
+        return Storage::disk('public')->response(
+            $lampiran->path_file,
+            $lampiran->nama_asli,
+            ['Content-Type' => $lampiran->mime_type ?: 'application/octet-stream']
+        );
+    }
+
     public function simpanNilai(Request $request, KaryaPeserta $karya)
     {
         $edisi = $this->resolveEdisiKonteks($request);
@@ -368,6 +445,7 @@ class PenjurianController extends Controller
 
         return redirect()->back()->with('success', 'Nilai berhasil disimpan.')->setStatusCode(303);
     }
+
 
     public function rekap(Request $request)
     {

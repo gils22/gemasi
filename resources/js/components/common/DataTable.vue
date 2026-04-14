@@ -4,7 +4,7 @@ import { usePage } from "@inertiajs/vue3";
 import {
     Download,
     Trash2,
-    Columns,
+    ListFilter,
     Search,
     ChevronsUpDown,
     ChevronUp,
@@ -37,6 +37,12 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import {
     Select,
@@ -333,9 +339,9 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
 
 <template>
     <div class="space-y-4">
-        <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+        <div class="flex items-center justify-between gap-3">
             <!-- LEFT SIDE -->
-            <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
                 <!-- SEARCH -->
                 <div class="relative w-full sm:w-72">
                     <Search
@@ -349,19 +355,33 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
                 </div>
 
                 <!-- FILTER / CUSTOM LEFT -->
-                <div class="w-full sm:w-auto">
+                <div class="min-w-0">
                     <slot name="toolbar-left" />
                 </div>
 
                 <!-- COLUMN TOGGLE -->
                 <DropdownMenu>
                     <DropdownMenuTrigger as-child>
-                        <Button variant="outline" class="w-full sm:w-auto">
-                            <Columns class="w-4 h-4" />
-                            Columns
-                        </Button>
+                        <span class="inline-flex">
+                            <TooltipProvider :delay-duration="150">
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            class="w-10 h-10"
+                                            aria-label="Filter"
+                                        >
+                                            <ListFilter class="w-4 h-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom"
+                                        >Filter</TooltipContent
+                                    >
+                                </Tooltip>
+                            </TooltipProvider>
+                        </span>
                     </DropdownMenuTrigger>
-
                     <DropdownMenuContent align="start" class="w-44">
                         <div
                             v-for="col in columns"
@@ -384,13 +404,25 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
                 <!-- EXPORT -->
                 <DropdownMenu>
                     <DropdownMenuTrigger as-child>
-                        <Button
-                            variant="outline"
-                            class="w-full sm:w-auto flex items-center gap-2"
-                        >
-                            <Download class="w-4 h-4" />
-                            Export
-                        </Button>
+                        <span class="inline-flex">
+                            <TooltipProvider :delay-duration="150">
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            class="w-10 h-10"
+                                            aria-label="Export"
+                                        >
+                                            <Download class="w-4 h-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="bottom"
+                                        >Export</TooltipContent
+                                    >
+                                </Tooltip>
+                            </TooltipProvider>
+                        </span>
                     </DropdownMenuTrigger>
 
                     <DropdownMenuContent align="start" class="w-20">
@@ -414,21 +446,21 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
             </div>
 
             <!-- RIGHT SIDE -->
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div class="flex items-center gap-2">
                 <Button
                     v-if="props.showBulkDelete !== false"
                     variant="destructive"
                     :disabled="selected.length === 0"
                     @click="emit('bulk-delete', selected)"
-                    class="w-full sm:w-auto flex items-center gap-2"
+                    class="w-full sm:w-auto min-w-[120px] flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                     <Trash2 class="w-4 h-4" />
                     Delete
                     <span
-                        v-if="selected.length > 0"
                         class="bg-white/25 text-white text-xs px-2 py-0.5 rounded-full"
+                        :class="selected.length > 0 ? '' : 'invisible'"
                     >
-                        {{ selected.length }}
+                        {{ selected.length || 0 }}
                     </span>
                 </Button>
 

@@ -1,23 +1,46 @@
 ﻿<script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { ArrowRight } from "lucide-vue-next";
 import GlareHover from "@/components/GlareHover/GlareHover.vue";
+import InteractiveGridPattern from "@/components/ui/interactive-grid-pattern/InteractiveGridPattern.vue";
+
+type LandingPayload = {
+    hero_badge: string | null;
+    hero_title: string | null;
+    hero_subtitle: string | null;
+    about_text: string | null;
+    cta_badge: string | null;
+    cta_label: string | null;
+    cta_url: string | null;
+};
+
+const props = defineProps<{
+    landing?: LandingPayload | null;
+}>();
 
 let typingTimer: number | undefined;
 let typingPauseTimer: number | undefined;
+let hasDispatched = false;
 
-const fullDescription =
+const fallbackDescription =
     "Gelar Karya Mahasiswa Sistem Informasi (GEMASI) adalah ajang kompetisi yang mewadahi karya inovatif mahasiswa dari hasil final project mata kuliah. GEMASI membangun atmosfer kompetisi yang mendorong kreativitas, inovasi, serta membuka peluang jejaring untuk berkembang ke tingkat nasional dan internasional.";
+const fullDescription = computed(
+    () => props.landing?.about_text ?? fallbackDescription,
+);
 const typedDescription = ref("");
 
 const startTyping = () => {
     let index = 0;
     typedDescription.value = "";
     typingTimer = window.setInterval(() => {
-        typedDescription.value = fullDescription.slice(0, index + 1);
+        typedDescription.value = fullDescription.value.slice(0, index + 1);
         index += 1;
-        if (index >= fullDescription.length) {
+        if (index >= fullDescription.value.length) {
             window.clearInterval(typingTimer);
+            if (!hasDispatched) {
+                hasDispatched = true;
+                window.dispatchEvent(new Event("gemasi:hero-typing-done"));
+            }
             typingPauseTimer = window.setTimeout(() => {
                 startTyping();
             }, 5000);
@@ -40,22 +63,37 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <section id="tentang" class="relative">
-        <div class="mx-auto w-full max-w-5xl px-6 pt-28 pb-20 text-center">
+    <section
+        id="tentang"
+        data-reveal
+        class="reveal--hero relative overflow-hidden bg-gradient-to-b from-sky-100 via-sky-50 to-white"
+    >
+        <InteractiveGridPattern
+            :squares="[26, 18]"
+            :width="48"
+            :height="48"
+            class-name="absolute inset-0 z-0 opacity-70 [mask-image:radial-gradient(ellipse_at_center,rgba(0,0,0,0.65),transparent_70%)]"
+            squares-class-name="stroke-slate-400/80"
+        />
+        <div
+            class="relative z-10 mx-auto w-full max-w-5xl px-6 pt-28 pb-20 text-center"
+        >
             <div
-                class="mx-auto inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/50 px-4 py-1 text-[11px] sm:text-xs font-semibold uppercase tracking-widest text-slate-600 backdrop-blur"
+                class="hero-blur delay-1 mx-auto inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/50 px-4 py-1 text-[11px] sm:text-xs font-semibold uppercase tracking-widest text-slate-600 backdrop-blur"
             >
-                GEMASI 2026
+                {{ props.landing?.hero_badge ?? "GEMASI 2026" }}
             </div>
 
             <h1
-                class="mt-4 text-3xl sm:text-4xl md:text-5xl font-semibold leading-tight text-slate-900"
+                class="hero-blur delay-2 mt-4 text-3xl sm:text-4xl md:text-5xl font-semibold leading-tight text-slate-900"
             >
-                Beyond Innovation
+                {{ props.landing?.hero_title ?? "Beyond Innovation" }}
             </h1>
-            <p class="font-semibold mt-3 text-base sm:text-lg text-slate-600">
-                Gelar Karya Mahasiswa Sistem Informasi Universitas Amikom
-                Yogyakarta
+            <p class="hero-blur delay-3 font-semibold mt-3 text-base sm:text-lg text-slate-600">
+                {{
+                    props.landing?.hero_subtitle ??
+                    "Gelar Karya Mahasiswa Sistem Informasi Universitas Amikom Yogyakarta"
+                }}
             </p>
 
             <div
@@ -81,17 +119,20 @@ onUnmounted(() => {
                     className="border-transparent"
                 >
                     <a
-                        href="/login"
+                        :href="props.landing?.cta_url ?? '/login'"
                         class="group inline-flex items-center gap-3 rounded-full border border-white/60 bg-white/35 px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-semibold text-slate-700 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur-xl transition hover:bg-white/50 hover:border-white"
                     >
                         <span class="hidden sm:inline"
-                            >GEMASI 2026 • Beyond Innovation</span
+                            >{{
+                                props.landing?.cta_badge ??
+                                "GEMASI 2026 • Beyond Innovation"
+                            }}</span
                         >
                         <span class="hidden sm:inline h-4 w-px bg-slate-200" />
                         <span
                             class="inline-flex items-center gap-1 text-slate-900 group"
                         >
-                            Daftar Sekarang
+                            {{ props.landing?.cta_label ?? "Daftar Sekarang" }}
                             <ArrowRight
                                 class="h-5 w-5 -rotate-45 transition-transform duration-200 group-hover:rotate-0 mt-1"
                             />

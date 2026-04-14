@@ -7,12 +7,22 @@ import { router } from "@inertiajs/vue3";
 
 import { Mail, Lock, Eye, EyeOff, User } from "lucide-vue-next";
 
+const props = defineProps({
+    isLocal: Boolean,
+});
+
 const showAdminLogin = ref(false);
 const showPassword = ref(false);
 const showTooltip = ref(false);
+const localEmail = ref("");
 
 const togglePassword = () => {
     showPassword.value = !showPassword.value;
+};
+
+const loginLocal = (role) => {
+    if (!localEmail.value) return;
+    router.post("/auth/local", { email: localEmail.value, role });
 };
 </script>
 
@@ -41,7 +51,7 @@ const togglePassword = () => {
                 <!-- ========================= -->
                 <div v-if="!showAdminLogin" key="peserta" class="space-y-6">
                     <Button
-                        class="w-full flex items-center justify-center gap-2"
+                        class="w-full h-11 flex items-center justify-center gap-2"
                         as-child
                     >
                         <a
@@ -57,7 +67,7 @@ const togglePassword = () => {
                     </Button>
 
                     <p class="text-xs text-center text-muted-foreground">
-                        Peserta menggunakan akun Google Student
+                        Silahkan login menggunakan akun Google Student
                     </p>
                 </div>
 
@@ -65,28 +75,62 @@ const togglePassword = () => {
                 <!-- ADMIN / JURI LOGIN -->
                 <!-- ========================= -->
                 <div v-else key="admin" class="space-y-6">
+                    <!-- Local-only quick login -->
+                    <div v-if="props.isLocal" class="space-y-3">
+                        <Input
+                            v-model="localEmail"
+                            type="email"
+                            placeholder="Email"
+                            class="h-11"
+                        />
+                        <div class="grid grid-cols-2 gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                class="h-11"
+                                @click="loginLocal('admin')"
+                            >
+                                Admin
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                class="h-11"
+                                @click="loginLocal('juri')"
+                            >
+                                Juri
+                            </Button>
+                        </div>
+                        <p class="text-xs text-muted-foreground">
+                            Untuk testing local.
+                        </p>
+                    </div>
                     <!-- Email -->
                     <div class="relative">
                         <Mail
-                            class="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
+                            class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                         />
-                        <Input type="email" placeholder="Email" class="pl-10" />
+                        <Input
+                            type="email"
+                            placeholder="Email"
+                            class="pl-10 h-11"
+                        />
                     </div>
 
                     <!-- Password -->
                     <div class="relative">
                         <Lock
-                            class="absolute left-3 top-3 h-4 w-4 text-muted-foreground"
+                            class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                         />
                         <Input
                             :type="showPassword ? 'text' : 'password'"
                             placeholder="Password"
-                            class="pl-10 pr-10"
+                            class="pl-10 pr-10 h-11"
                         />
                         <button
                             type="button"
                             @click="togglePassword"
-                            class="absolute right-3 top-3 text-muted-foreground"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                         >
                             <Eye v-if="!showPassword" class="h-4 w-4" />
                             <EyeOff v-else class="h-4 w-4" />
@@ -94,14 +138,14 @@ const togglePassword = () => {
                     </div>
 
                     <Button
-                        class="w-full flex items-center justify-center gap-2"
+                        class="w-full h-11 flex items-center justify-center gap-2"
                     >
                         Login
                     </Button>
 
                     <Button
                         variant="outline"
-                        class="w-full flex items-center justify-center gap-2"
+                        class="w-full h-11 flex items-center justify-center gap-2"
                         as-child
                     >
                         <a
@@ -154,4 +198,3 @@ const togglePassword = () => {
         </div>
     </AuthLayout>
 </template>
-

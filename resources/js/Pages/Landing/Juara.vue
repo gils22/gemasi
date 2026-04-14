@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted } from "vue";
-import { usePage } from "@inertiajs/vue3";
+import { Link, usePage } from "@inertiajs/vue3";
 import LandingLayout from "@/Layouts/LandingLayout.vue";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,9 +11,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import Confetti from "@/components/ui/confetti/Confetti.vue";
-import ConfettiButton from "@/components/ui/confetti/ConfettiButton.vue";
-import { Search, Video } from "lucide-vue-next";
+import { Search, Eye } from "lucide-vue-next";
 
 type Edisi = {
     id: number;
@@ -22,6 +27,7 @@ type Edisi = {
 };
 
 type Pemenang = {
+    id?: number;
     peringkat: number;
     kategori: string | null;
     nama_karya: string | null;
@@ -124,10 +130,8 @@ watch(
     { immediate: true },
 );
 
-const handleVideoClick = (url?: string | null) => {
-    if (!url) return;
-    window.open(url, "_blank", "noopener");
-};
+const getWinnerId = (row: Pemenang, index: number) =>
+    row.id ? String(row.id) : String(index + 1);
 
 const fireSideCannons = () => {
     const base = {
@@ -173,9 +177,6 @@ watch(
     },
 );
 
-const fireConfetti = () => {
-    fireSideCannons();
-};
 </script>
 
 <template>
@@ -212,7 +213,7 @@ const fireConfetti = () => {
                         <div class="w-full sm:w-[200px]">
                             <Select v-model="activeEdisiValue">
                                 <SelectTrigger
-                                    class="w-full border-slate-200 bg-white/80 text-sm font-semibold text-slate-900"
+                                    class="w-full rounded-lg border-slate-200 bg-white/80 text-sm font-semibold text-slate-900"
                                 >
                                     <SelectValue placeholder="Pilih Tahun" />
                                 </SelectTrigger>
@@ -231,7 +232,7 @@ const fireConfetti = () => {
                         <div class="w-full sm:w-[240px]">
                             <Select v-model="activeKategoriValue">
                                 <SelectTrigger
-                                    class="w-full border-slate-200 bg-white/80 text-sm font-semibold text-slate-900"
+                                    class="w-full rounded-lg border-slate-200 bg-white/80 text-sm font-semibold text-slate-900"
                                 >
                                     <SelectValue placeholder="Semua Kategori" />
                                 </SelectTrigger>
@@ -256,7 +257,7 @@ const fireConfetti = () => {
                                     v-model="searchQuery"
                                     type="search"
                                     placeholder="Cari nama atau tim..."
-                                    class="w-full rounded-lg border border-slate-200 bg-white/80 py-2 pl-9 pr-3 text-sm font-semibold text-slate-900 shadow-sm transition focus:border-slate-400 focus:outline-none"
+                                    class="w-full rounded-lg border border-slate-200 bg-white/80 py-2 pl-9 pr-3 text-sm font-semibold text-slate-900 transition focus:border-slate-400 focus:outline-none"
                                 />
                             </div>
                         </div>
@@ -283,30 +284,33 @@ const fireConfetti = () => {
                             <Card
                                 v-for="(row, idx) in filteredPemenang"
                                 :key="`${activeEdisi.id}-${idx}`"
-                                class="border-slate-200 shadow-sm"
-                            >
-                                <CardHeader class="pb-2 space-y-3">
+                            class="relative border-slate-200 rounded-lg"
+                        >
+                            <CardHeader class="pb-2 space-y-3">
                                     <div
                                         class="flex items-center justify-between"
                                     >
                                         <Badge
                                             class="bg-amber-100 text-amber-700"
                                         >
-                                            #{{ row.peringkat }}
+                                            Juara {{ row.peringkat }}
                                         </Badge>
-                                        <span class="text-xs text-slate-500">
-                                            {{ row.kategori ?? "-" }}
+                                        <span
+                                            v-if="row.kategori"
+                                            class="text-xs text-slate-500"
+                                        >
+                                            {{ row.kategori }}
                                         </span>
                                     </div>
-                                    <div class="flex items-start gap-3">
-                                        <div
-                                            class="flex h-14 w-14 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-400"
-                                        >
+                                    <div class="flex items-center gap-3">
+                                    <div
+                                        class="flex h-14 w-14 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-400"
+                                    >
                                             <img
                                                 v-if="row.logo_url"
                                                 :src="row.logo_url"
                                                 alt="Logo karya"
-                                                class="h-full w-full rounded-lg object-cover"
+                                                class="h-full w-full rounded-md object-contain p-1"
                                             />
                                             <span v-else>
                                                 {{
@@ -322,75 +326,51 @@ const fireConfetti = () => {
                                             >
                                                 {{ row.nama_karya ?? "-" }}
                                             </CardTitle>
-                                            <p
-                                                class="mt-1 text-xs text-slate-500"
-                                            >
-                                                {{
-                                                    row.deskripsi ??
-                                                    "Deskripsi karya belum tersedia."
-                                                }}
-                                            </p>
                                         </div>
                                     </div>
                                 </CardHeader>
-                                <CardContent class="space-y-2">
-                                    <p class="text-xs text-slate-500">
-                                        Anggota Tim
-                                    </p>
-                                    <div
-                                        v-if="row.anggota_tim?.length"
-                                        class="space-y-1"
-                                    >
-                                        <div
-                                            v-for="(
-                                                anggota, aidx
-                                            ) in row.anggota_tim"
-                                            :key="`anggota-${aidx}`"
-                                            class="flex items-center justify-between text-sm text-slate-800"
-                                        >
-                                            <span class="font-medium">
-                                                {{ anggota.nama ?? "-" }}
-                                            </span>
-                                            <span
-                                                class="text-xs text-slate-500"
+                                <CardContent class="space-y-2 pb-12">
+                                    <div v-if="row.anggota_tim?.length">
+                                        <p class="text-xs text-slate-500">
+                                            Anggota Tim
+                                        </p>
+                                        <div class="mt-1 space-y-1">
+                                            <div
+                                                v-for="(
+                                                    anggota, aidx
+                                                ) in row.anggota_tim"
+                                                :key="`anggota-${aidx}`"
+                                                class="flex items-center justify-between text-sm text-slate-800"
                                             >
-                                                {{ anggota.nim ?? "-" }}
-                                            </span>
+                                                <span class="font-medium">
+                                                    {{ anggota.nama ?? "-" }}
+                                                </span>
+                                                <span
+                                                    class="text-xs text-slate-500"
+                                                >
+                                                    {{ anggota.nim ?? "-" }}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <p v-else class="text-xs text-slate-500">
-                                        Data anggota belum tersedia.
-                                    </p>
-                                    <div class="pt-2">
-                                        <ConfettiButton
-                                            v-if="row.video_url"
-                                            :options="{
-                                                particleCount: 90,
-                                                spread: 70,
-                                            }"
-                                            class="w-full"
-                                            @click="
-                                                handleVideoClick(row.video_url)
-                                            "
-                                        >
-                                            <span
-                                                class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
-                                            >
-                                                <Video class="h-4 w-4" />
-                                                Video Demo
-                                            </span>
-                                        </ConfettiButton>
-                                        <button
-                                            v-else
-                                            type="button"
-                                            class="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-400"
-                                            disabled
-                                        >
-                                            <Video class="h-4 w-4" />
-                                            Video Demo Belum Tersedia
-                                        </button>
-                                    </div>
                                 </CardContent>
+                                <div class="absolute bottom-4 right-4">
+                                    <TooltipProvider :delay-duration="150">
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <Link
+                                                    :href="`/juara/${getWinnerId(row, idx)}`"
+                                                    class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                                >
+                                                    <Eye class="h-4 w-4" />
+                                                </Link>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="top">
+                                                Lihat Detail
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </div>
                             </Card>
                         </div>
                     </div>

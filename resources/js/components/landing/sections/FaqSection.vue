@@ -1,7 +1,19 @@
-﻿<script setup lang="ts">
-import { ChevronDown } from "lucide-vue-next";
+<script setup lang="ts">
+import { computed } from "vue";
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 
-const faqs = [
+type FaqItem = { q: string; a: string };
+
+const props = defineProps<{
+    faqs?: FaqItem[];
+}>();
+
+const fallbackFaqs: FaqItem[] = [
     {
         q: "Siapa saja yang boleh mengikuti GEMASI?",
         a: "Peserta adalah mahasiswa Prodi Sistem Informasi sesuai ketentuan pada edisi yang aktif.",
@@ -23,40 +35,37 @@ const faqs = [
         a: "Panduan tersedia pada halaman Panduan di menu atas landing.",
     },
 ];
+
+const faqList = computed(() =>
+    props.faqs !== undefined ? props.faqs : fallbackFaqs,
+);
+const showFaq = computed(() => faqList.value.length > 0);
 </script>
 
 <template>
-    <section class="bg-transparent">
-        <div class="mx-auto w-full max-w-6xl px-6 pb-20">
+    <section v-if="showFaq" class="reveal bg-transparent" data-reveal>
+        <div class="mx-auto w-full max-w-6xl px-12 pb-20">
             <div class="flex flex-col gap-2 text-center">
                 <h2 class="text-3xl font-semibold">FAQ</h2>
             </div>
 
-            <div class="mt-6 space-y-3">
-                <details
-                    v-for="item in faqs"
+            <Accordion type="single" collapsible class="mt-6">
+                <AccordionItem
+                    v-for="item in faqList"
                     :key="item.q"
-                    class="group rounded-2xl border border-slate-200 bg-white/70 p-4"
+                    :value="item.q"
+                    class="border-b border-slate-200 px-0"
                 >
-                    <summary
-                        class="flex cursor-pointer list-none items-center justify-between text-base font-semibold text-slate-900"
+                    <AccordionTrigger
+                        class="py-4 text-base font-semibold text-slate-900 hover:no-underline"
                     >
-                        <span>{{ item.q }}</span>
-                        <ChevronDown
-                            class="h-4 w-4 text-slate-900 transition-transform duration-300 group-open:rotate-180"
-                        />
-                    </summary>
-                    <div
-                        class="grid transition-all duration-300 [grid-template-rows:0fr] group-open:[grid-template-rows:1fr]"
-                    >
-                        <div class="overflow-hidden">
-                            <p class="mt-2 text-base text-slate-600">
-                                {{ item.a }}
-                            </p>
-                        </div>
-                    </div>
-                </details>
-            </div>
+                        {{ item.q }}
+                    </AccordionTrigger>
+                    <AccordionContent class="text-base text-slate-600">
+                        {{ item.a }}
+                    </AccordionContent>
+                </AccordionItem>
+            </Accordion>
         </div>
     </section>
 </template>

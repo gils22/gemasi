@@ -235,7 +235,7 @@ const isParentActive = (menu: MenuItem) => {
                 <img
                     :src="page.props.app?.logo || '/favicon.ico'"
                     alt="GEMASI"
-                    class="w-10 h-10 object-cover"
+                    class="w-8 h-8 object-cover"
                 />
 
                 <div v-if="!collapsed || isMobile" class="flex-1 min-w-0">
@@ -247,7 +247,7 @@ const isParentActive = (menu: MenuItem) => {
                         <SelectTrigger class="w-full h-9 bg-white">
                             <SelectValue placeholder="Pilih edisi" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent class="max-h-72 overflow-auto">
                             <SelectItem
                                 v-for="edisi in daftarEdisi"
                                 :key="edisi.id"
@@ -271,26 +271,110 @@ const isParentActive = (menu: MenuItem) => {
         <!-- MENU -->
         <!-- ===================== -->
         <ScrollArea class="flex-1 min-h-0">
-            <nav :class="['space-y-1 mt-4 pb-4', isCollapsed ? 'px-2' : 'px-3']">
+            <nav
+                :class="['space-y-1 mt-4 pb-4', isCollapsed ? 'px-2' : 'px-3']"
+            >
                 <TooltipProvider :delay-duration="150">
                     <template v-for="(menu, index) in menus" :key="menu.label">
-                    <!-- ====================== -->
-                    <!-- MENU WITH CHILDREN -->
-                    <!-- ====================== -->
-                    <div v-if="(menu.children ?? []).length > 0">
-                        <!-- Parent -->
-                        <template v-if="isCollapsed && !isMobile">
-                            <Popover
-                                :open="openCollapsedMenu === menu.label"
-                                @update:open="
-                                    (val) =>
-                                        toggleCollapsedMenu(menu.label, val)
-                                "
-                            >
-                                <PopoverTrigger as-child>
+                        <!-- ====================== -->
+                        <!-- MENU WITH CHILDREN -->
+                        <!-- ====================== -->
+                        <div v-if="(menu.children ?? []).length > 0">
+                            <!-- Parent -->
+                            <template v-if="isCollapsed && !isMobile">
+                                <Popover
+                                    :open="openCollapsedMenu === menu.label"
+                                    @update:open="
+                                        (val) =>
+                                            toggleCollapsedMenu(menu.label, val)
+                                    "
+                                >
+                                    <PopoverTrigger as-child>
+                                        <button
+                                            :class="[
+                                                'relative w-full flex items-center justify-center rounded-lg text-sm font-medium transition-all duration-200 px-2 py-2.5',
+                                                isParentActive(menu)
+                                                    ? 'bg-blue-50 text-blue-700'
+                                                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+                                            ]"
+                                        >
+                                            <span
+                                                v-if="isParentActive(menu)"
+                                                class="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-blue-600"
+                                            />
+                                            <component
+                                                :is="menu.icon"
+                                                class="w-5 h-5"
+                                            />
+                                        </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                        side="right"
+                                        align="start"
+                                        class="w-56 p-0"
+                                    >
+                                        <div
+                                            class="rounded-xl border border-slate-200 bg-white shadow-lg p-3"
+                                        >
+                                            <div
+                                                class="text-xs font-semibold text-slate-500 mb-2"
+                                            >
+                                                {{ menu.label }}
+                                            </div>
+                                            <div
+                                                class="relative pl-4 space-y-1"
+                                            >
+                                                <span
+                                                    class="absolute left-3 top-4 bottom-4 w-px bg-slate-200"
+                                                />
+                                                <Link
+                                                    v-for="child in menu.children ??
+                                                    []"
+                                                    :key="child.label"
+                                                    :href="child.href"
+                                                    class="group relative flex items-center gap-2 rounded-md pl-7 pr-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                                    @click="
+                                                        openCollapsedMenu = null
+                                                    "
+                                                >
+                                                    <span
+                                                        :class="[
+                                                            'h-1.5 w-1.5 rounded-full absolute left-3 top-1/2 -translate-y-1/2',
+                                                            isMenuActive(
+                                                                child.href,
+                                                            )
+                                                                ? 'bg-blue-600'
+                                                                : 'bg-slate-300 group-hover:bg-blue-500',
+                                                        ]"
+                                                    />
+                                                    <span
+                                                        :class="[
+                                                            isMenuActive(
+                                                                child.href,
+                                                            )
+                                                                ? 'text-blue-700 font-medium'
+                                                                : '',
+                                                        ]"
+                                                    >
+                                                        {{ child.label }}
+                                                    </span>
+                                                </Link>
+                                            </div>
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
+                            </template>
+                            <Tooltip v-else>
+                                <TooltipTrigger as-child>
                                     <button
+                                        @click="
+                                            !collapsed && toggleMenu(menu.label)
+                                        "
                                         :class="[
-                                            'relative w-full flex items-center justify-center rounded-lg text-sm font-medium transition-all duration-200 px-2 py-2.5',
+                                            'relative w-full flex items-center justify-between rounded-lg text-sm font-medium transition-all duration-200',
+                                            isCollapsed
+                                                ? 'px-2 py-2.5 justify-center'
+                                                : 'px-3 py-2.5',
                                             isParentActive(menu)
                                                 ? 'bg-blue-50 text-blue-700'
                                                 : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
@@ -300,113 +384,118 @@ const isParentActive = (menu: MenuItem) => {
                                             v-if="isParentActive(menu)"
                                             class="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-blue-600"
                                         />
-                                        <component
-                                            :is="menu.icon"
-                                            class="w-5 h-5"
+
+                                        <div
+                                            :class="[
+                                                'flex items-center gap-3',
+                                                isCollapsed
+                                                    ? 'w-full justify-center gap-0'
+                                                    : '',
+                                            ]"
+                                        >
+                                            <component
+                                                :is="menu.icon"
+                                                class="w-5 h-5"
+                                            />
+                                            <span v-if="!collapsed || isMobile">
+                                                {{ menu.label }}
+                                            </span>
+                                        </div>
+
+                                        <ChevronDown
+                                            v-if="!collapsed || isMobile"
+                                            :class="[
+                                                'w-6 h-6 transition-transform duration-300',
+                                                openMenus.includes(menu.label)
+                                                    ? 'rotate-180'
+                                                    : '',
+                                            ]"
                                         />
                                     </button>
-                                </PopoverTrigger>
-                                <PopoverContent
+                                </TooltipTrigger>
+
+                                <!-- Tooltip saat collapsed -->
+                                <TooltipContent
+                                    v-if="collapsed && !isMobile"
                                     side="right"
-                                    align="start"
-                                    class="w-56 p-0"
                                 >
-                                    <div
-                                        class="rounded-xl border border-slate-200 bg-white shadow-lg p-3"
-                                    >
-                                        <div
-                                            class="text-xs font-semibold text-slate-500 mb-2"
-                                        >
-                                            {{ menu.label }}
-                                        </div>
-                                        <div class="relative pl-4 space-y-1">
-                                            <span
-                                                class="absolute left-3 top-4 bottom-4 w-px bg-slate-200"
-                                            />
-                                            <Link
-                                                v-for="child in menu.children ??
-                                                []"
-                                                :key="child.label"
-                                                :href="child.href"
-                                                class="group relative flex items-center gap-2 rounded-md pl-7 pr-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                                                @click="
-                                                    openCollapsedMenu = null
-                                                "
-                                            >
-                                                <span
-                                                    :class="[
-                                                        'h-1.5 w-1.5 rounded-full absolute left-3 top-1/2 -translate-y-1/2',
-                                                        isMenuActive(child.href)
-                                                            ? 'bg-blue-600'
-                                                            : 'bg-slate-300 group-hover:bg-blue-500',
-                                                    ]"
-                                                />
-                                                <span
-                                                    :class="[
-                                                        isMenuActive(child.href)
-                                                            ? 'text-blue-700 font-medium'
-                                                            : '',
-                                                    ]"
-                                                >
-                                                    {{ child.label }}
-                                                </span>
-                                            </Link>
-                                        </div>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
-                        </template>
-                        <Tooltip v-else>
-                            <TooltipTrigger as-child>
-                                <button
-                                    @click="
-                                        !collapsed && toggleMenu(menu.label)
+                                    {{ menu.label }}
+                                </TooltipContent>
+                            </Tooltip>
+
+                            <!-- Children -->
+                            <transition
+                                enter-active-class="transition-all duration-300 ease-out"
+                                enter-from-class="max-h-0 opacity-0"
+                                enter-to-class="max-h-40 opacity-100"
+                                leave-active-class="transition-all duration-200 ease-in"
+                                leave-from-class="max-h-40 opacity-100"
+                                leave-to-class="max-h-0 opacity-0"
+                            >
+                                <div
+                                    v-show="
+                                        openMenus.includes(menu.label) &&
+                                        (!collapsed || isMobile)
                                     "
-                                    :class="[
-                                        'relative w-full flex items-center justify-between rounded-lg text-sm font-medium transition-all duration-200',
-                                        isCollapsed
-                                            ? 'px-2 py-2.5 justify-center'
-                                            : 'px-3 py-2.5',
-                                        isParentActive(menu)
-                                            ? 'bg-blue-50 text-blue-700'
-                                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
-                                    ]"
+                                    class="ml-2 mt-1 space-y-1 overflow-hidden relative pl-4"
                                 >
                                     <span
-                                        v-if="isParentActive(menu)"
+                                        class="absolute left-3 top-2 bottom-1 w-px bg-slate-200"
+                                    />
+                                    <Link
+                                        v-for="child in menu.children ?? []"
+                                        :key="child.label"
+                                        :href="child.href"
+                                        :class="[
+                                            linkClass(child.href),
+                                            'text-[13px] py-2 relative pl-6',
+                                            isMenuActive(child.href)
+                                                ? 'bg-blue-50 text-blue-700'
+                                                : '',
+                                        ]"
+                                        @click="
+                                            isMobile && emit('close-mobile')
+                                        "
+                                    >
+                                        <span
+                                            :class="[
+                                                'absolute left-3 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full',
+                                                isMenuActive(child.href)
+                                                    ? 'bg-blue-600'
+                                                    : 'bg-slate-300',
+                                            ]"
+                                        />
+                                        {{ child.label }}
+                                    </Link>
+                                </div>
+                            </transition>
+                        </div>
+
+                        <!-- ====================== -->
+                        <!-- NORMAL MENU -->
+                        <!-- ====================== -->
+                        <Tooltip v-else-if="menu.href">
+                            <TooltipTrigger as-child>
+                                <Link
+                                    :href="menu.href"
+                                    :class="linkClass(menu.href)"
+                                    @click="isMobile && emit('close-mobile')"
+                                >
+                                    <span
+                                        v-if="isMenuActive(menu.href)"
                                         class="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-blue-600"
                                     />
-
-                                    <div
-                                        :class="[
-                                            'flex items-center gap-3',
-                                            isCollapsed
-                                                ? 'w-full justify-center gap-0'
-                                                : '',
-                                        ]"
-                                    >
-                                        <component
-                                            :is="menu.icon"
-                                            class="w-5 h-5"
-                                        />
-                                        <span v-if="!collapsed || isMobile">
-                                            {{ menu.label }}
-                                        </span>
-                                    </div>
-
-                                    <ChevronDown
-                                        v-if="!collapsed || isMobile"
-                                        :class="[
-                                            'w-6 h-6 transition-transform duration-300',
-                                            openMenus.includes(menu.label)
-                                                ? 'rotate-180'
-                                                : '',
-                                        ]"
+                                    <component
+                                        :is="menu.icon"
+                                        class="w-5 h-5"
                                     />
-                                </button>
+
+                                    <span v-if="!collapsed || isMobile">
+                                        {{ menu.label }}
+                                    </span>
+                                </Link>
                             </TooltipTrigger>
 
-                            <!-- Tooltip saat collapsed -->
                             <TooltipContent
                                 v-if="collapsed && !isMobile"
                                 side="right"
@@ -414,82 +503,6 @@ const isParentActive = (menu: MenuItem) => {
                                 {{ menu.label }}
                             </TooltipContent>
                         </Tooltip>
-
-                        <!-- Children -->
-                        <transition
-                            enter-active-class="transition-all duration-300 ease-out"
-                            enter-from-class="max-h-0 opacity-0"
-                            enter-to-class="max-h-40 opacity-100"
-                            leave-active-class="transition-all duration-200 ease-in"
-                            leave-from-class="max-h-40 opacity-100"
-                            leave-to-class="max-h-0 opacity-0"
-                        >
-                            <div
-                                v-show="
-                                    openMenus.includes(menu.label) &&
-                                    (!collapsed || isMobile)
-                                "
-                                class="ml-2 mt-1 space-y-1 overflow-hidden relative pl-4"
-                            >
-                                <span
-                                    class="absolute left-3 top-2 bottom-1 w-px bg-slate-200"
-                                />
-                                <Link
-                                    v-for="child in menu.children ?? []"
-                                    :key="child.label"
-                                    :href="child.href"
-                                    :class="[
-                                        linkClass(child.href),
-                                        'text-[13px] py-2 relative pl-6',
-                                        isMenuActive(child.href)
-                                            ? 'bg-blue-50 text-blue-700'
-                                            : '',
-                                    ]"
-                                    @click="isMobile && emit('close-mobile')"
-                                >
-                                    <span
-                                        :class="[
-                                            'absolute left-3 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full',
-                                            isMenuActive(child.href)
-                                                ? 'bg-blue-600'
-                                                : 'bg-slate-300',
-                                        ]"
-                                    />
-                                    {{ child.label }}
-                                </Link>
-                            </div>
-                        </transition>
-                    </div>
-
-                    <!-- ====================== -->
-                    <!-- NORMAL MENU -->
-                    <!-- ====================== -->
-                    <Tooltip v-else-if="menu.href">
-                        <TooltipTrigger as-child>
-                            <Link
-                                :href="menu.href"
-                                :class="linkClass(menu.href)"
-                                @click="isMobile && emit('close-mobile')"
-                            >
-                                <span
-                                    v-if="isMenuActive(menu.href)"
-                                    class="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-blue-600"
-                                />
-                                <component :is="menu.icon" class="w-5 h-5" />
-
-                                <span v-if="!collapsed || isMobile">
-                                    {{ menu.label }}
-                                </span>
-                            </Link>
-                        </TooltipTrigger>
-
-                        <TooltipContent
-                            v-if="collapsed && !isMobile"
-                            side="right"
-                        >
-                            {{ menu.label }}
-                        </TooltipContent>
-                    </Tooltip>
                     </template>
                 </TooltipProvider>
             </nav>

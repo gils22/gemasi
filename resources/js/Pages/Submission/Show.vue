@@ -72,16 +72,26 @@ const page = usePage<
         submission: Submission;
         gemasiAktifLabel: string;
         bolehKelola: boolean;
+        bolehNilaiTahap1?: boolean;
+        bolehLoloskanNominasi?: boolean;
     }
 >();
 const submission = computed(() => page.props.submission);
 const bolehKelola = computed(() => page.props.bolehKelola === true);
+const bolehNilaiTahap1 = computed(
+    () => page.props.bolehNilaiTahap1 === true || bolehKelola.value,
+);
+const bolehLoloskanNominasi = computed(
+    () => page.props.bolehLoloskanNominasi === true || bolehKelola.value,
+);
 const tabAktif = ref<"ringkasan" | "tim" | "lampiran">("ringkasan");
 const daftarTab = ["ringkasan", "tim", "lampiran"] as const;
 
 const role = computed(() => page.props.auth?.role ?? "admin");
 const isPrivileged = computed(() => role.value === "admin");
-const routePrefix = computed(() => "/admin");
+const routePrefix = computed(() =>
+    role.value === "juri" ? "/juri" : "/admin",
+);
 const nilaiTahap1 = ref<number | null>(null);
 const catatanTahap1 = ref("");
 const isSavingNilai = ref(false);
@@ -112,7 +122,7 @@ const backToList = () => {
 };
 
 const toggleNominasi = () => {
-    if (!bolehKelola.value) return;
+    if (!bolehLoloskanNominasi.value) return;
     if (
         !submission.value.is_lolos_nominasi &&
         submission.value.status !== "submitted"
@@ -182,7 +192,7 @@ watch(openEditTim, (val) => {
 });
 
 const simpanNilaiTahap1 = () => {
-    if (!bolehKelola.value) return;
+    if (!bolehNilaiTahap1.value) return;
     isSavingNilai.value = true;
     router.patch(
         `${routePrefix.value}/submission/${submission.value.id}/nilai-tahap-1`,
@@ -263,7 +273,7 @@ defineOptions({
                     }}</Badge>
                 </div>
                 <Button
-                    v-if="bolehKelola"
+                    v-if="bolehLoloskanNominasi"
                     variant="outline"
                     size="sm"
                     :disabled="
@@ -407,10 +417,10 @@ defineOptions({
                 </div>
             </div>
 
-            <div
-                v-if="bolehKelola"
-                class="rounded-lg border bg-white p-4 md:col-span-2 space-y-3"
-            >
+        <div
+            v-if="bolehNilaiTahap1"
+            class="rounded-lg border bg-white p-4 md:col-span-2 space-y-3"
+        >
                 <div class="flex items-center justify-between">
                     <p class="text-sm font-semibold text-slate-800">
                         Penilaian Tahap 1

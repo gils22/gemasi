@@ -5,6 +5,7 @@ import LandingNavbar from "@/components/landing/LandingNavbar.vue";
 import LandingFooter from "@/components/landing/LandingFooter.vue";
 
 const page = usePage();
+let revealObserver: IntersectionObserver | null = null;
 
 const scrollFromQuery = () => {
     const params = new URLSearchParams(window.location.search);
@@ -21,9 +22,28 @@ onMounted(() => {
     document.body.classList.add("landing-scroll-hidden");
     document.documentElement.classList.add("landing-scroll-hidden");
 });
+onMounted(() => {
+    const elements = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-reveal]"),
+    );
+    revealObserver = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add("is-visible");
+                    revealObserver?.unobserve(entry.target);
+                }
+            });
+        },
+        { threshold: 0.18, rootMargin: "0px 0px -10% 0px" },
+    );
+    elements.forEach((el) => revealObserver?.observe(el));
+});
 onUnmounted(() => {
     document.body.classList.remove("landing-scroll-hidden");
     document.documentElement.classList.remove("landing-scroll-hidden");
+    revealObserver?.disconnect();
+    revealObserver = null;
 });
 watch(
     () => page.url,

@@ -7,6 +7,7 @@ use App\Models\Edition;
 use App\Models\KaryaPeserta;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 
 class PameranController extends Controller
@@ -83,5 +84,50 @@ class PameranController extends Controller
             $karya->pameran_logo_nama_asli ?? 'logo',
             ['Content-Type' => $karya->pameran_logo_mime_type ?: 'application/octet-stream']
         );
+    }
+
+    public function update(Request $request, KaryaPeserta $karya)
+    {
+        $edisi = $this->resolveEdisiKonteks($request);
+        abort_unless((int) $karya->edisi_lomba_id === (int) $edisi->id, 403);
+
+        $validator = Validator::make($request->all(), [
+            'pameran_logo' => 'nullable|file|mimes:jpg,jpeg,png|max:4096',
+            'pameran_link_video' => 'nullable|string|max:2048',
+            'pameran_ringkasan' => 'nullable|string|max:2000',
+        ]);
+
+        $validated = $validator->validate();
+
+        if ($request->hasFile('pameran_logo')) {
+            if ($karya->pameran_logo_path) {
+                Storage::disk('public')->delete($karya->pameran_logo_path);
+            }
+
+            $logo = $request->file('pameran_logo');
+            $logoPath = $logo->store("pameran-karya/{$edisi->id}/admin/{$karya->id}/logo", 'public');
+            $karya->pameran_logo_path = $logoPath;
+            $karya->pameran_logo_nama_asli = $logo->getClientOriginalName();
+            $karya->pameran_logo_mime_type = $logo->getClientMimeType();
+            $karya->pameran_logo_ukuran = (int) $logo->getSize();
+        }
+
+        if (array_key_exists('pameran_link_video', $validated)) {
+            $link = trim((string) $validated['pameran_link_video']);
+            $karya->pameran_link_video = $link !== '' ? $link : null;
+        }
+
+        if (array_key_exists('pameran_ringkasan', $validated)) {
+            $ringkasan = trim((string) $validated['pameran_ringkasan']);
+            $karya->pameran_ringkasan = $ringkasan !== '' ? $ringkasan : null;
+        }
+
+        if ($request->hasFile('pameran_logo') || $validated['pameran_link_video'] ?? null || $validated['pameran_ringkasan'] ?? null) {
+            $karya->pameran_submitted_at = now();
+        }
+
+        $karya->save();
+
+        return redirect()->back()->with('success', 'Data pameran berhasil diperbarui.');
     }
 }

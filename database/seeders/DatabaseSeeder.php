@@ -18,5 +18,6 @@ class DatabaseSeeder extends Seeder
         $this->call(RoleSeeder::class);
         $this->call(EditionSeeder::class);
         $this->call(PesertaJuriSeeder::class);
+        $this->call(LandingSettingSeeder::class);
     }
 }

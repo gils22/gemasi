@@ -8,14 +8,27 @@ defineProps<{
 }>();
 
 const collapsed = ref(false);
+const userCollapsed = ref(false);
 const mobileOpen = ref(false);
 const isMobile = ref(false);
+const isCompact = ref(false);
 
 const checkScreen = () => {
-    isMobile.value = window.innerWidth < 1024;
+    const width = window.innerWidth;
+    isMobile.value = width < 768;
+    isCompact.value = width < 1280;
+
     if (isMobile.value) {
         collapsed.value = false;
+        return;
     }
+
+    if (isCompact.value) {
+        collapsed.value = true;
+        return;
+    }
+
+    collapsed.value = userCollapsed.value;
 };
 
 onMounted(() => {
@@ -41,19 +54,28 @@ onUnmounted(() => {
             :mobile-open="mobileOpen"
             :is-mobile="isMobile"
             @close-mobile="mobileOpen = false"
-            class="z-50"
+            class="z-50 shrink-0"
         />
 
-        <div class="flex-1 flex flex-col transition-all duration-300">
+        <div
+            class="flex-1 min-w-0 flex flex-col transition-all duration-300"
+        >
             <Topbar
                 :title="title"
                 :collapsed="collapsed"
                 @toggle-sidebar="
-                    isMobile ? (mobileOpen = true) : (collapsed = !collapsed)
+                    isMobile
+                        ? (mobileOpen = true)
+                        : isCompact
+                          ? ((userCollapsed = true), (collapsed = true))
+                          : (userCollapsed = !userCollapsed,
+                            (collapsed = userCollapsed))
                 "
             />
 
-            <main class="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
+            <main
+                class="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-3 sm:p-4 lg:p-6"
+            >
                 <slot />
             </main>
         </div>

@@ -5,6 +5,13 @@ import DashboardLayout from "@/Layouts/DashboardLayout.vue";
 import DataTable from "@/components/common/DataTable.vue";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import DetailModal from "@/components/penjurian/DetailModal.vue";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
     Select,
     SelectContent,
@@ -12,6 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Eye, Plus, SquarePen } from "lucide-vue-next";
 import type { PageProps } from "@/types/inertia";
 
 type NominasiRow = {
@@ -28,6 +36,32 @@ type NominasiRow = {
     rata_rata?: number | null;
     jumlah_penilai?: number;
     url_nilai: string;
+    url_detail: string;
+};
+
+type Lampiran = {
+    id: number;
+    nama: string;
+    deskripsi: string | null;
+    url: string;
+};
+
+type DetailKarya = {
+    id: number;
+    nama_karya: string;
+    nama_kategori: string;
+    peserta: {
+        name: string | null;
+        email: string | null;
+        avatar: string | null;
+    };
+    anggota_tim: Array<{
+        nama?: string;
+        nim?: string;
+        email?: string;
+        peran?: string;
+    }>;
+    lampiran: Lampiran[];
 };
 
 const page = usePage<
@@ -39,6 +73,7 @@ const page = usePage<
 >();
 
 const rows = computed(() => page.props.nominasi ?? []);
+const isAdmin = computed(() => page.props.auth?.role === "admin");
 const kategoriFilter = ref<string>("semua");
 const daftarKategori = computed(() => page.props.kategoriOptions ?? []);
 const filteredRows = computed(() => {
@@ -47,6 +82,36 @@ const filteredRows = computed(() => {
         (row) => row.nama_kategori === kategoriFilter.value,
     );
 });
+
+const detailOpen = ref(false);
+const detailLoading = ref(false);
+const detailError = ref<string | null>(null);
+const detailData = ref<DetailKarya | null>(null);
+
+const openDetail = async (row: NominasiRow) => {
+    detailOpen.value = true;
+    detailLoading.value = true;
+    detailError.value = null;
+    detailData.value = null;
+
+    try {
+        const response = await fetch(row.url_detail, {
+            headers: { Accept: "application/json" },
+        });
+        if (!response.ok) {
+            throw new Error("Gagal memuat detail karya.");
+        }
+        const payload = await response.json();
+        detailData.value = payload.karya ?? null;
+    } catch (error) {
+        detailError.value =
+            error instanceof Error
+                ? error.message
+                : "Gagal memuat detail karya.";
+    } finally {
+        detailLoading.value = false;
+    }
+};
 const columns = [
     { key: "nama_karya", label: "Karya", sortable: true },
     { key: "peserta", label: "Peserta", sortable: true },
@@ -166,15 +231,49 @@ defineOptions({
                 </template>
 
                 <template #actions="{ row }: { row: NominasiRow }">
-                    <Button
-                        size="sm"
-                        :variant="row.sudah_dinilai ? 'outline' : 'default'"
-                        as-child
-                    >
-                        <a :href="row.url_nilai">
-                            {{ row.sudah_dinilai ? "Edit Nilai" : "Nilai" }}
-                        </a>
-                    </Button>
+                    <TooltipProvider :delay-duration="150">
+                        <div class="flex items-center justify-end gap-1">
+                            <Tooltip>
+                                <TooltipTrigger as-child>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        class="text-slate-600 hover:text-slate-900"
+                                        @click="openDetail(row)"
+                                    >
+                                        <Eye class="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Detail</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                                <TooltipTrigger as-child>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        class="text-slate-600 hover:text-slate-900"
+                                        as-child
+                                    >
+                                        <a :href="row.url_nilai">
+                                            <SquarePen
+                                                v-if="row.sudah_dinilai"
+                                                class="h-4 w-4"
+                                            />
+                                            <Plus v-else class="h-4 w-4" />
+                                        </a>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {{
+                                        row.sudah_dinilai
+                                            ? "Edit Nilai"
+                                            : "Berikan Penilaian"
+                                    }}
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
+                    </TooltipProvider>
                 </template>
             </DataTable>
         </div>
@@ -274,19 +373,40 @@ defineOptions({
                 </div>
 
                 <div class="mt-3">
-                    <Button
-                        size="sm"
-                        class="w-full"
-                        :variant="row.sudah_dinilai ? 'outline' : 'default'"
-                        as-child
-                    >
-                        <a :href="row.url_nilai">
-                            {{ row.sudah_dinilai ? "Edit Nilai" : "Nilai" }}
-                        </a>
-                    </Button>
+                    <div class="grid gap-2 sm:grid-cols-2">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            class="w-full"
+                            @click="openDetail(row)"
+                        >
+                            Lihat Detail
+                        </Button>
+                        <Button
+                            size="sm"
+                            class="w-full"
+                            :variant="row.sudah_dinilai ? 'outline' : 'default'"
+                            as-child
+                        >
+                            <a :href="row.url_nilai">
+                                {{
+                                    row.sudah_dinilai ? "Edit Nilai" : "Nilai"
+                                }}
+                            </a>
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <DetailModal
+        v-model:open="detailOpen"
+        :loading="detailLoading"
+        :detail="detailData"
+        :gemasi-label="page.props.gemasiAktifLabel"
+    />
+
+    <div v-if="detailError" class="sr-only">{{ detailError }}</div>
 </template>
 

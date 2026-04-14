@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Edition;
 use App\Models\KaryaPeserta;
-use App\Models\PemenangArsip;
 use App\Models\PemenangKarya;
 use App\Models\PenilaianTahapDua;
 use Illuminate\Http\Request;
@@ -66,10 +65,6 @@ class PemenangController extends Controller
     {
         $edisi = $this->resolveEdisiKonteks();
 
-        $daftarEdisi = Edition::query()
-            ->orderByDesc('tahun')
-            ->get(['id', 'nama', 'tahun']);
-
         $pemenang = PemenangKarya::query()
             ->with(['karya:id,nama_karya,nama_kategori,anggota_tim', 'kategori:id,nama'])
             ->where('edisi_lomba_id', $edisi->id)
@@ -96,38 +91,8 @@ class PemenangController extends Controller
             })
             ->values();
 
-        $pemenangArsip = PemenangArsip::query()
-            ->with('edisi:id,nama,tahun')
-            ->orderByDesc('edisi_lomba_id')
-            ->orderBy('kategori')
-            ->orderBy('peringkat')
-            ->get()
-            ->map(function (PemenangArsip $row) {
-                $anggota = collect($row->anggota_tim ?? [])
-                    ->map(function ($item) {
-                        $nama = is_array($item) ? ($item['nama'] ?? '-') : '-';
-                        $nim = is_array($item) ? ($item['nim'] ?? '-') : '-';
-                        return ['nama' => $nama, 'nim' => $nim];
-                    })
-                    ->values()
-                    ->all();
-                return [
-                    'id' => $row->id,
-                    'edisi_id' => $row->edisi_lomba_id,
-                    'tahun' => $row->edisi?->tahun,
-                    'nama_edisi' => $row->edisi?->nama,
-                    'peringkat' => $row->peringkat,
-                    'nama_kategori' => $row->kategori,
-                    'nama_karya' => $row->nama_karya,
-                    'anggota_tim' => $anggota,
-                ];
-            })
-            ->values();
-
         return Inertia::render('Admin/Pemenang/Index', [
             'pemenang' => $pemenang,
-            'pemenangArsip' => $pemenangArsip,
-            'daftarEdisi' => $daftarEdisi,
             'gemasiAktifLabel' => $edisi->nama . ' (' . $edisi->tahun . ')',
         ]);
     }
@@ -165,56 +130,5 @@ class PemenangController extends Controller
         return redirect()->back()->with('success', 'Pemenang berhasil ditetapkan.');
     }
 
-    public function storeArsip(Request $request)
-    {
-        $validated = $request->validate([
-            'edisi_lomba_id' => 'required|integer|exists:edisi_lomba,id',
-            'kategori' => 'required|string|max:255',
-            'peringkat' => 'required|integer|min:1|max:3',
-            'nama_karya' => 'required|string|max:255',
-            'anggota_tim' => 'nullable|array',
-            'anggota_tim.*.nama' => 'required_with:anggota_tim|string|max:255',
-            'anggota_tim.*.nim' => 'required_with:anggota_tim|string|max:50',
-        ]);
-
-        PemenangArsip::query()->create([
-            'edisi_lomba_id' => $validated['edisi_lomba_id'],
-            'kategori' => $validated['kategori'],
-            'peringkat' => $validated['peringkat'],
-            'nama_karya' => $validated['nama_karya'],
-            'anggota_tim' => $validated['anggota_tim'] ?? [],
-        ]);
-
-        return redirect()->back()->with('success', 'Pemenang arsip berhasil ditambahkan.');
-    }
-
-    public function updateArsip(Request $request, PemenangArsip $arsip)
-    {
-        $validated = $request->validate([
-            'edisi_lomba_id' => 'required|integer|exists:edisi_lomba,id',
-            'kategori' => 'required|string|max:255',
-            'peringkat' => 'required|integer|min:1|max:3',
-            'nama_karya' => 'required|string|max:255',
-            'anggota_tim' => 'nullable|array',
-            'anggota_tim.*.nama' => 'required_with:anggota_tim|string|max:255',
-            'anggota_tim.*.nim' => 'required_with:anggota_tim|string|max:50',
-        ]);
-
-        $arsip->update([
-            'edisi_lomba_id' => $validated['edisi_lomba_id'],
-            'kategori' => $validated['kategori'],
-            'peringkat' => $validated['peringkat'],
-            'nama_karya' => $validated['nama_karya'],
-            'anggota_tim' => $validated['anggota_tim'] ?? [],
-        ]);
-
-        return redirect()->back()->with('success', 'Pemenang arsip diperbarui.');
-    }
-
-    public function destroyArsip(PemenangArsip $arsip)
-    {
-        $arsip->delete();
-
-        return redirect()->back()->with('success', 'Pemenang arsip dihapus.');
-    }
+    // Arsip pemenang dihapus dari UI.
 }

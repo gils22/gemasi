@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Edition;
 use App\Models\KaryaPeserta;
 use App\Models\LampiranKaryaPeserta;
+use App\Models\KategoriLomba;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -111,6 +112,11 @@ class SubmissionController extends Controller
             'gemasiAktifLabel' => $edisi->nama . ' (' . $edisi->tahun . ')',
             'bolehKelola' => $bolehKelola,
             'mode' => $onlyNominasi ? 'nominasi' : 'karya',
+            'kategoriOptions' => KategoriLomba::query()
+                ->where('edisi_lomba_id', $edisi->id)
+                ->where('aktif', true)
+                ->orderBy('urutan')
+                ->get(['id', 'nama']),
         ]);
     }
 
@@ -127,6 +133,47 @@ class SubmissionController extends Controller
     public function nominasi(Request $request)
     {
         return $this->renderIndex($request, true);
+    }
+
+    public function storeManual(Request $request)
+    {
+        $edisi = $this->resolveEdisiKonteks($request);
+        abort_unless($this->bolehKelola($request, (int) $edisi->id), 403);
+
+        $validated = $request->validate([
+            'kategori_lomba_id' => 'required|integer|exists:kategori_lomba,id',
+            'nama_karya' => 'required|string|max:255',
+            'wa_ketua' => 'nullable|string|max:30',
+            'pameran_ringkasan' => 'nullable|string|max:500',
+            'pameran_link_video' => 'nullable|string|max:255',
+            'anggota_tim' => 'required|array|min:1|max:6',
+            'anggota_tim.*.nim' => 'nullable|string|max:50',
+            'anggota_tim.*.nama' => 'required|string|max:255',
+            'anggota_tim.*.email' => 'nullable|string|max:255',
+            'anggota_tim.*.peran' => 'nullable|string|max:50',
+        ]);
+
+        $kategori = KategoriLomba::query()
+            ->where('id', $validated['kategori_lomba_id'])
+            ->where('edisi_lomba_id', $edisi->id)
+            ->firstOrFail();
+
+        KaryaPeserta::create([
+            'edisi_lomba_id' => $edisi->id,
+            'user_id' => null,
+            'kategori_lomba_id' => $kategori->id,
+            'nama_kategori' => $kategori->nama,
+            'nama_karya' => $validated['nama_karya'],
+            'wa_ketua' => $validated['wa_ketua'] ?: '-',
+            'anggota_tim' => $validated['anggota_tim'],
+            'pameran_ringkasan' => $validated['pameran_ringkasan'] ?? null,
+            'pameran_link_video' => $validated['pameran_link_video'] ?? null,
+            'status' => 'submitted',
+            'sumber' => 'manual',
+            'submitted_at' => now(),
+        ]);
+
+        return redirect()->back()->with('success', 'Karya manual berhasil ditambahkan.');
     }
 
     public function show(Request $request, KaryaPeserta $karya)

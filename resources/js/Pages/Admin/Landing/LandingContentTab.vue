@@ -1,0 +1,142 @@
+<script setup lang="ts">
+import { Plus, Trash2 } from "lucide-vue-next";
+import { Button } from "@/components/ui/button";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+
+type LandingForm = {
+    hero_badge: string | null;
+    hero_title: string | null;
+    hero_subtitle: string | null;
+    about_text: string | null;
+    cta_badge: string | null;
+    cta_label: string | null;
+    cta_url: string | null;
+    faq_items: Array<{ q: string; a: string }>;
+};
+
+const props = defineProps<{
+    form: LandingForm;
+    onAddFaq: () => void;
+    onRemoveFaq: (index: number) => void;
+}>();
+</script>
+
+<template>
+    <Card>
+        <CardHeader>
+            <CardTitle>Konten Landing</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-4">
+            <div class="grid gap-3 md:grid-cols-2">
+                <div class="space-y-1">
+                    <label class="text-xs text-slate-500">Hero Badge</label>
+                    <Input
+                        v-model="props.form.hero_badge"
+                        placeholder="GEMASI 2026"
+                    />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs text-slate-500">Hero Title</label>
+                    <Input
+                        v-model="props.form.hero_title"
+                        placeholder="Beyond Innovation"
+                    />
+                </div>
+            </div>
+            <div class="space-y-1">
+                <label class="text-xs text-slate-500">Hero Subtitle</label>
+                <Input
+                    v-model="props.form.hero_subtitle"
+                    placeholder="Gelar Karya Mahasiswa Sistem Informasi Universitas Amikom Yogyakarta"
+                />
+            </div>
+            <div class="space-y-1">
+                <label class="text-xs text-slate-500">Tentang</label>
+                <textarea
+                    v-model="props.form.about_text"
+                    rows="5"
+                    class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    placeholder="Deskripsi singkat tentang GEMASI"
+                />
+            </div>
+
+            <div class="grid gap-3 md:grid-cols-2">
+                <div class="space-y-1">
+                    <label class="text-xs text-slate-500">CTA Badge</label>
+                    <Input
+                        v-model="props.form.cta_badge"
+                        placeholder="GEMASI 2026 - Beyond Innovation"
+                    />
+                </div>
+                <div class="space-y-1">
+                    <label class="text-xs text-slate-500">CTA Label</label>
+                    <Input
+                        v-model="props.form.cta_label"
+                        placeholder="Daftar Sekarang"
+                    />
+                </div>
+            </div>
+            <div class="space-y-1">
+                <label class="text-xs text-slate-500">CTA URL</label>
+                <Input v-model="props.form.cta_url" placeholder="/login" />
+            </div>
+
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm font-semibold text-slate-900">FAQ</p>
+                    <Button variant="outline" size="sm" @click="props.onAddFaq">
+                        <Plus class="h-4 w-4" />
+                        Tambah
+                    </Button>
+                </div>
+                <div v-if="props.form.faq_items.length" class="space-y-3">
+                    <div
+                        v-for="(item, idx) in props.form.faq_items"
+                        :key="`faq-${idx}`"
+                        class="rounded-lg border border-slate-200 bg-white p-3 space-y-2"
+                    >
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="text-xs font-semibold text-slate-500">
+                                FAQ #{{ idx + 1 }}
+                            </p>
+                            <TooltipProvider :delay-duration="150">
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="text-slate-500 hover:text-red-600"
+                                            @click="props.onRemoveFaq(idx)"
+                                        >
+                                            <Trash2 class="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                        Hapus FAQ
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
+                        <Input v-model="item.q" placeholder="Pertanyaan" />
+                        <textarea
+                            v-model="item.a"
+                            rows="3"
+                            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            placeholder="Jawaban"
+                        />
+                    </div>
+                </div>
+                <p v-else class="text-xs text-slate-500">
+                    Belum ada FAQ. Klik Tambah FAQ untuk membuatnya.
+                </p>
+            </div>
+        </CardContent>
+    </Card>
+</template>
