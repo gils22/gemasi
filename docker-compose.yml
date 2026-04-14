@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gemasi-app
+    container_name: gemasi-app
+    restart: unless-stopped
+    volumes:
+      - ./:/var/www
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - gemasi
+
+  nginx:
+    image: nginx:alpine
+    container_name: gemasi-nginx
+    restart: unless-stopped
+    ports:
+      - "8091:80"
+    volumes:
+      - ./:/var/www
+      - ./docker/nginx:/etc/nginx/conf.d
+    networks:
+      - gemasi
+    depends_on:
+      - app
+
+  mysql:
+    image: mysql:8.0
+    container_name: gemasi-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+    volumes:
+      - gemasi_data:/var/lib/mysql
+    ports:
+      - "3316:3306"
+    networks:
+      - gemasi
+
+  # redis:
+  #   image: redis:alpine
+  #   container_name: gemasi-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6399:6379"
+  #   networks:
+  #     - gemasi
+
+networks:
+  gemasi:
+    driver: bridge
+
+volumes:
+  gemasi_data:
+    driver: local
