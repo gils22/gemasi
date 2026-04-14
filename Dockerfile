@@ -5,7 +5,7 @@ COPY composer.json composer.lock ./
 RUN composer install \
     --no-dev \
     --no-scripts \
-    --no-autoloader \
+    --optimize-autoloader \
     --prefer-dist \
     --no-interaction
 
@@ -60,8 +60,6 @@ COPY --from=frontend /app/public/build ./public/build
 
 # Install dependencies
 # RUN composer install --no-dev --optimize-autoloader --no-interaction
-# Generate optimized autoload
-RUN composer dump-autoload --optimize
 
 # Install NPM dependencies
 # RUN npm install
