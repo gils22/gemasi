@@ -2,8 +2,8 @@
 import { Instagram, Facebook, Youtube, Copyright } from "lucide-vue-next";
 import FluidCursor from "@/components/ui/fluid-cursor/FluidCursor.vue";
 
-const logoAmikom = `${import.meta.env.BASE_URL}images/logo-amikom.svg`;
-const logoSi = `${import.meta.env.BASE_URL}images/logo-si.svg`;
+import logoAmikom from "@/assets/logo-amikom.svg";
+import logoSi from "@/assets/logo-si.svg";
 </script>
 
 <template>

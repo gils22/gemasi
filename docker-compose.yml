@@ -10,6 +10,9 @@ services:
     restart: unless-stopped
     volumes:
       - ./:/var/www
+      - /var/www/vendor # ← proteksi vendor
+      - /var/www/public/build # ← proteksi hasil build frontend
+      - /var/www/node_modules # ← proteksi node_modules
       - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
     networks:
       - gemasi
@@ -17,14 +20,16 @@ services:
       - mysql
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    image: gemasi-nginx
     container_name: gemasi-nginx
     restart: unless-stopped
     ports:
       - "8091:80"
     volumes:
-      - ./:/var/www
-      - ./docker/nginx:/etc/nginx/conf.d
+      - ./docker/nginx:/etc/nginx/conf.d:ro
     networks:
       - gemasi
     depends_on:
