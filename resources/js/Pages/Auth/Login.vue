@@ -1,28 +1,45 @@
 ﻿<script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import AuthLayout from "@/Layouts/AuthLayout.vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { router } from "@inertiajs/vue3";
+import { router, usePage } from "@inertiajs/vue3";
+import googleLogo from "@/assets/logo-google.svg";
 
 import { Mail, Lock, Eye, EyeOff, User } from "lucide-vue-next";
 
-const props = defineProps({
-    isLocal: Boolean,
-});
+const page = usePage();
 
 const showAdminLogin = ref(false);
 const showPassword = ref(false);
 const showTooltip = ref(false);
-const localEmail = ref("");
+const formEmail = ref("");
+const formPassword = ref("");
+const isSubmitting = ref(false);
+const errorMessage = computed(
+    () => page.props.errors?.email || page.props.errors?.password || "",
+);
 
 const togglePassword = () => {
     showPassword.value = !showPassword.value;
 };
 
-const loginLocal = (role) => {
-    if (!localEmail.value) return;
-    router.post("/auth/local", { email: localEmail.value, role });
+const loginWithForm = () => {
+    if (!formEmail.value || !formPassword.value) return;
+
+    isSubmitting.value = true;
+    router.post(
+        "/auth/form",
+        {
+            email: formEmail.value,
+            password: formPassword.value,
+        },
+        {
+            onFinish: () => {
+                isSubmitting.value = false;
+            },
+        },
+    );
 };
 </script>
 
@@ -59,7 +76,7 @@ const loginLocal = (role) => {
                             class="flex items-center gap-2"
                         >
                             <img
-                                src="https://www.svgrepo.com/show/475656/google-color.svg"
+                                :src="googleLogo"
                                 class="h-4 w-4"
                             />
                             Login dengan Google
@@ -75,42 +92,13 @@ const loginLocal = (role) => {
                 <!-- ADMIN / JURI LOGIN -->
                 <!-- ========================= -->
                 <div v-else key="admin" class="space-y-6">
-                    <!-- Local-only quick login -->
-                    <div v-if="props.isLocal" class="space-y-3">
-                        <Input
-                            v-model="localEmail"
-                            type="email"
-                            placeholder="Email"
-                            class="h-11"
-                        />
-                        <div class="grid grid-cols-2 gap-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                class="h-11"
-                                @click="loginLocal('admin')"
-                            >
-                                Admin
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                class="h-11"
-                                @click="loginLocal('juri')"
-                            >
-                                Juri
-                            </Button>
-                        </div>
-                        <p class="text-xs text-muted-foreground">
-                            Untuk testing local.
-                        </p>
-                    </div>
                     <!-- Email -->
                     <div class="relative">
                         <Mail
                             class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                         />
                         <Input
+                            v-model="formEmail"
                             type="email"
                             placeholder="Email"
                             class="pl-10 h-11"
@@ -123,6 +111,7 @@ const loginLocal = (role) => {
                             class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
                         />
                         <Input
+                            v-model="formPassword"
                             :type="showPassword ? 'text' : 'password'"
                             placeholder="Password"
                             class="pl-10 pr-10 h-11"
@@ -137,8 +126,17 @@ const loginLocal = (role) => {
                         </button>
                     </div>
 
+                    <p
+                        v-if="errorMessage"
+                        class="text-sm text-center text-rose-600"
+                    >
+                        {{ errorMessage }}
+                    </p>
+
                     <Button
                         class="w-full h-11 flex items-center justify-center gap-2"
+                        :disabled="isSubmitting"
+                        @click="loginWithForm"
                     >
                         Login
                     </Button>
@@ -153,7 +151,7 @@ const loginLocal = (role) => {
                             class="flex items-center gap-2"
                         >
                             <img
-                                src="https://www.svgrepo.com/show/475656/google-color.svg"
+                                :src="googleLogo"
                                 class="h-4 w-4"
                             />
                             Login dengan Google

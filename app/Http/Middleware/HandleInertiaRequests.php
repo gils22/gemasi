@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Edition;
+use App\Services\EditionStatusSynchronizer;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Illuminate\Support\Str;
@@ -72,6 +73,8 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        app(EditionStatusSynchronizer::class)->archiveExpiredEditions();
+
         $roleKonteks = $this->resolveRoleKonteks($request);
         $daftarEdisi = $this->daftarEdisiSesuaiRole($request, $roleKonteks);
         $user = $request->user();

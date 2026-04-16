@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { Link, usePage } from "@inertiajs/vue3";
 import LandingLayout from "@/Layouts/LandingLayout.vue";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Video } from "lucide-vue-next";
+import { ArrowLeft } from "lucide-vue-next";
 
 type Winner = {
     peringkat: number;
@@ -12,7 +12,9 @@ type Winner = {
     anggota_tim: Array<{ nama?: string; nim?: string }>;
     deskripsi?: string | null;
     logo_url?: string | null;
+    logo_name?: string | null;
     video_url?: string | null;
+    pameran_submitted_at?: string | null;
 };
 
 type Edisi = {
@@ -65,56 +67,42 @@ const videoEmbedUrl = computed(() =>
                 </div>
 
                 <div class="mt-6 rounded-2xl border border-slate-200 bg-white/90 p-6">
-                    <div class="flex flex-col gap-6 md:flex-row md:items-start">
-                        <div class="flex items-start gap-4">
-                            <div
-                                class="flex h-20 w-20 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-semibold text-slate-400"
+                    <div class="flex items-start gap-4 border-b border-slate-100 pb-4">
+                        <div
+                            class="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                        >
+                            <img
+                                v-if="winner.logo_url"
+                                :src="winner.logo_url"
+                                alt="Logo karya"
+                                class="h-full w-full object-contain"
+                            />
+                            <span
+                                v-else
+                                class="text-xs text-center text-slate-400"
                             >
-                                <img
-                                    v-if="winner.logo_url"
-                                    :src="winner.logo_url"
-                                    alt="Logo karya"
-                                    class="h-full w-full rounded-md object-cover"
-                                />
-                                <span v-else>
-                                    {{
-                                        (winner.nama_karya ?? "GK")
-                                            .slice(0, 2)
-                                            .toUpperCase()
-                                    }}
-                                </span>
-                            </div>
-                            <div>
-                                <p
-                                    v-if="winner.kategori"
-                                    class="text-xs font-semibold uppercase text-slate-400"
-                                >
-                                    {{ winner.kategori }}
-                                </p>
-                                <h1 class="text-2xl font-semibold text-slate-900">
-                                    {{ winner.nama_karya ?? "-" }}
-                                </h1>
-                                <div class="mt-3 flex items-center gap-2 text-sm text-slate-500">
-                                    <Badge class="bg-amber-100 text-amber-700">
-                                        #{{ winner.peringkat ?? "-" }}
-                                    </Badge>
-                                    <span v-if="winner.kategori">
-                                        {{ winner.kategori }}
-                                    </span>
-                                </div>
-                            </div>
+                                Belum ada logo
+                            </span>
                         </div>
 
-                        <div class="flex-1">
-                            <div
-                                v-if="winner.deskripsi"
-                                class="space-y-2 text-sm text-slate-600"
-                            >
-                                <p class="text-xs font-semibold text-slate-500">
-                                    Ringkasan Produk
-                                </p>
-                                <p>{{ winner.deskripsi }}</p>
+                        <div class="min-w-0 flex-1 space-y-1">
+                            <div class="flex items-center gap-2 text-sm text-slate-500">
+                                <Badge class="bg-amber-100 text-amber-700">
+                                    Juara {{ winner.peringkat ?? "-" }}
+                                </Badge>
+                                <span v-if="winner.kategori">
+                                    {{ winner.kategori }}
+                                </span>
                             </div>
+                            <h1 class="text-2xl font-semibold text-slate-900">
+                                {{ winner.nama_karya ?? "-" }}
+                            </h1>
+                            <p class="text-xs text-slate-500 break-words">
+                                {{ winner.logo_name ?? "-" }}
+                            </p>
+                            <p class="text-xs text-slate-400">
+                                {{ winner.pameran_submitted_at ?? "-" }}
+                            </p>
                         </div>
                     </div>
 
@@ -141,29 +129,50 @@ const videoEmbedUrl = computed(() =>
                         </div>
                     </div>
 
-                    <div v-if="winner.video_url" class="mt-8">
-                        <p class="text-xs font-semibold text-slate-500">
-                            Video Demo
-                        </p>
-                        <div class="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-900/5">
-                            <iframe
-                                v-if="videoEmbedUrl"
-                                :src="videoEmbedUrl"
-                                title="Video Demo"
-                                class="aspect-video w-full"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowfullscreen
-                            />
-                            <video
-                                v-else
-                                controls
-                                class="aspect-video w-full bg-black"
-                                :src="winner.video_url ?? undefined"
-                            />
+                    <div class="mt-8 grid items-start gap-4 lg:grid-cols-[1fr_1fr]">
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 space-y-3">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Video
+                            </p>
+                            <div
+                                v-if="winner.video_url"
+                                class="max-w-[320px] overflow-hidden rounded-xl border border-slate-200 bg-white"
+                            >
+                                <iframe
+                                    v-if="videoEmbedUrl"
+                                    :src="videoEmbedUrl"
+                                    title="Video Demo"
+                                    class="aspect-video w-full"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowfullscreen
+                                />
+                                <video
+                                    v-else
+                                    controls
+                                    class="aspect-video w-full bg-black"
+                                    :src="winner.video_url ?? undefined"
+                                />
+                            </div>
+                            <a
+                                v-if="winner.video_url"
+                                :href="winner.video_url"
+                                target="_blank"
+                                class="inline-flex text-sm font-medium text-blue-600 hover:text-blue-700"
+                            >
+                                Buka link video
+                            </a>
+                            <p v-else class="text-sm text-slate-400">
+                                Belum ada video
+                            </p>
                         </div>
-                        <div class="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                            <Video class="h-4 w-4" />
-                            Klik tombol play untuk memutar video.
+
+                        <div class="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 space-y-3">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                Ringkasan
+                            </p>
+                            <p class="text-sm leading-6 text-slate-700 whitespace-pre-line">
+                                {{ winner.deskripsi ?? "-" }}
+                            </p>
                         </div>
                     </div>
                 </div>

@@ -14,22 +14,34 @@ use Inertia\Inertia;
 
 class PameranController extends Controller
 {
-    private function resolveEdisiAktifOrFail(): Edition
+    private function resolveEdisiByKarya(KaryaPeserta $karya): Edition
+    {
+        return Edition::query()->findOrFail($karya->edisi_lomba_id);
+    }
+
+    private function resolveEdisiAktif(): ?Edition
     {
         $tahunSekarang = (int) now()->format('Y');
         $edisi = Edition::query()->where('status', 'aktif')->first()
             ?? Edition::query()->where('aktif', true)->first()
-            ?? Edition::query()->where('tahun', $tahunSekarang)->first()
-            ?? Edition::query()->orderByDesc('tahun')->first();
+            ?? Edition::query()->where('status', '!=', 'arsip')->where('tahun', $tahunSekarang)->first()
+            ?? Edition::query()->where('status', '!=', 'arsip')->orderByDesc('tahun')->first();
 
-        abort_if(!$edisi, 500, 'Edisi aktif belum tersedia.');
-        session(['edisi_aktif_id' => $edisi->id]);
+        if ($edisi) {
+            session(['edisi_aktif_id' => $edisi->id]);
+        } else {
+            session()->forget('edisi_aktif_id');
+        }
 
         return $edisi;
     }
 
     private function pameranMasihDibuka(Edition $edisi): array
     {
+        if ($edisi->status === 'arsip') {
+            return [true, null];
+        }
+
         $aktif = ($edisi->status === 'aktif') || (bool) $edisi->aktif;
         if (!$aktif) {
             return [false, null];
@@ -83,7 +95,24 @@ class PameranController extends Controller
 
     public function index(Request $request)
     {
-        $edisi = $this->resolveEdisiAktifOrFail();
+        $punyaPameranArsip = KaryaPeserta::query()
+            ->where('user_id', (int) $request->user()->id)
+            ->where('lolos_nominasi', true)
+            ->whereHas('edisi', function ($query) {
+                $query->where('status', 'arsip');
+            })
+            ->exists();
+        $edisi = $this->resolveEdisiAktif();
+        if (!$edisi) {
+            return Inertia::render('Peserta/Pameran/Index', [
+                'nominasi' => [],
+                'edisiAktifLabel' => 'Belum ada edisi aktif',
+                'bolehEdit' => false,
+                'batasPengumpulan' => null,
+                'punyaPameranArsip' => $punyaPameranArsip,
+            ]);
+        }
+
         [$bolehEdit, $batas] = $this->pameranMasihDibuka($edisi);
         $nominasi = KaryaPeserta::query()
             ->where('edisi_lomba_id', $edisi->id)
@@ -113,12 +142,13 @@ class PameranController extends Controller
             'edisiAktifLabel' => $edisi->nama . ' (' . $edisi->tahun . ')',
             'bolehEdit' => $bolehEdit,
             'batasPengumpulan' => $batas?->format('d M Y, H:i'),
+            'punyaPameranArsip' => $punyaPameranArsip,
         ]);
     }
 
     public function update(Request $request, KaryaPeserta $karya)
     {
-        $edisi = $this->resolveEdisiAktifOrFail();
+        $edisi = $this->resolveEdisiByKarya($karya);
         [$bolehEdit] = $this->pameranMasihDibuka($edisi);
         abort_unless($bolehEdit, 403, 'Pengumpulan pameran sudah ditutup.');
         abort_unless((int) $karya->user_id === (int) $request->user()->id, 403);
@@ -167,7 +197,7 @@ class PameranController extends Controller
 
     public function previewLogo(Request $request, KaryaPeserta $karya)
     {
-        $edisi = $this->resolveEdisiAktifOrFail();
+        $edisi = $this->resolveEdisiByKarya($karya);
         abort_unless((int) $karya->user_id === (int) $request->user()->id, 403);
         abort_unless((int) $karya->edisi_lomba_id === (int) $edisi->id, 403);
         abort_unless($karya->lolos_nominasi, 403);

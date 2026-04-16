@@ -12,6 +12,7 @@ import type { FormDaftarKarya } from "./types";
 defineProps<{
     form: FormDaftarKarya;
     daftarKategori: string[];
+    readOnly?: boolean;
 }>();
 </script>
 
@@ -21,6 +22,7 @@ defineProps<{
             <label class="text-sm font-medium text-slate-700">Kategori Karya *</label>
             <Select
                 :model-value="form.kategori"
+                :disabled="readOnly"
                 @update:model-value="(val) => (form.kategori = String(val ?? ''))"
             >
                 <SelectTrigger class="w-full bg-white">
@@ -43,6 +45,7 @@ defineProps<{
             <Input
                 v-model="form.namaKarya"
                 class="bg-white"
+                :disabled="readOnly"
                 placeholder="Contoh: Sistem Informasi X"
             />
         </div>
@@ -52,6 +55,7 @@ defineProps<{
             <Input
                 v-model="form.waKetua"
                 class="bg-white"
+                :disabled="readOnly"
                 placeholder="Contoh: 0899xxxxxxxx"
             />
         </div>

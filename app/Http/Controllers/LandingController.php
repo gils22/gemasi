@@ -12,6 +12,7 @@ use App\Models\TimelineLomba;
 use App\Models\KaryaPeserta;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LandingController extends Controller
 {
@@ -68,7 +69,7 @@ class LandingController extends Controller
 
         $logoUrl = null;
         if ($row->karya?->pameran_logo_path) {
-            $logoUrl = Storage::url($row->karya->pameran_logo_path);
+            $logoUrl = route('landing.juara.logo.preview', ['karya' => $row->karya->id]);
         }
 
         return [
@@ -82,7 +83,9 @@ class LandingController extends Controller
             'anggota_tim' => $anggota,
             'deskripsi' => $row->karya?->pameran_ringkasan,
             'logo_url' => $logoUrl,
+            'logo_name' => $row->karya?->pameran_logo_nama_asli,
             'video_url' => $row->karya?->pameran_link_video,
+            'pameran_submitted_at' => $row->karya?->pameran_submitted_at?->format('d M Y, H:i'),
         ];
     }
 
@@ -94,7 +97,7 @@ class LandingController extends Controller
 
         $pemenang = PemenangKarya::query()
             ->with([
-                'karya:id,nama_karya,nama_kategori,anggota_tim,pameran_ringkasan,pameran_link_video,pameran_logo_path',
+                'karya:id,nama_karya,nama_kategori,anggota_tim,pameran_ringkasan,pameran_link_video,pameran_logo_path,pameran_logo_nama_asli,pameran_logo_mime_type,pameran_submitted_at',
                 'kategori:id,nama',
                 'edisi:id,nama,tahun',
             ])
@@ -330,7 +333,7 @@ class LandingController extends Controller
     {
         $winner = PemenangKarya::query()
             ->with([
-                'karya:id,nama_karya,nama_kategori,anggota_tim,pameran_ringkasan,pameran_link_video,pameran_logo_path',
+                'karya:id,nama_karya,nama_kategori,anggota_tim,pameran_ringkasan,pameran_link_video,pameran_logo_path,pameran_logo_nama_asli,pameran_logo_mime_type,pameran_submitted_at',
                 'kategori:id,nama',
                 'edisi:id,nama,tahun',
             ])
@@ -349,5 +352,17 @@ class LandingController extends Controller
                 'tahun' => $winner->edisi->tahun,
             ] : null,
         ]);
+    }
+
+    public function previewJuaraLogo(KaryaPeserta $karya): StreamedResponse
+    {
+        abort_unless($karya->pameran_logo_path, 404);
+        abort_unless(Storage::disk('public')->exists($karya->pameran_logo_path), 404);
+
+        return Storage::disk('public')->response(
+            $karya->pameran_logo_path,
+            $karya->pameran_logo_nama_asli ?? 'logo',
+            ['Content-Type' => $karya->pameran_logo_mime_type ?: 'application/octet-stream']
+        );
     }
 }

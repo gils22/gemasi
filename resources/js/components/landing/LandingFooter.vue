@@ -16,13 +16,11 @@ import logoSi from "@/assets/logo-si.svg";
         <div class="relative mx-auto w-full max-w-6xl px-6 py-10 md:py-12">
             <div class="grid gap-10 md:grid-cols-[1.4fr_1fr]">
                 <div class="space-y-4 text-left">
-                    <div class="text-sm font-semibold text-slate-700">
+                    <div class="text-2xl font-semibold text-slate-700">
                         GEMASI
                     </div>
-                    <p class="text-sm text-slate-600 leading-relaxed">
-                        Ajang Gelar Karya Mahasiswa Sistem Informasi yang
-                        mendorong inovasi, kolaborasi, dan kompetisi sehat di
-                        lingkungan akademik.
+                    <p class="text-lg text-slate-600 leading-relaxed">
+                        Gelar Karya Mahasiswa Sistem Informasi.
                     </p>
                     <div class="space-y-2">
                         <div

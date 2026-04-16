@@ -19,6 +19,19 @@ use Inertia\Inertia;
 
 class KaryaController extends Controller
 {
+    private function resolveKaryaByUser(Request $request, int $karyaId): ?KaryaPeserta
+    {
+        if ($karyaId <= 0) {
+            return null;
+        }
+
+        return KaryaPeserta::query()
+            ->with(['lampiran', 'edisi'])
+            ->where('id', $karyaId)
+            ->where('user_id', (int) $request->user()->id)
+            ->first();
+    }
+
     private function resolveKaryaDraft(Request $request, Edition $edisi, int $karyaId): ?KaryaPeserta
     {
         if ($karyaId <= 0) {
@@ -81,7 +94,8 @@ class KaryaController extends Controller
         $tahunSekarang = (int) now()->format('Y');
         $edisi = Edition::query()->where('status', 'aktif')->first()
             ?? Edition::query()->where('aktif', true)->first()
-            ?? Edition::query()->where('tahun', $tahunSekarang)->first()
+            ?? Edition::query()->where('status', '!=', 'arsip')->where('tahun', $tahunSekarang)->first()
+            ?? Edition::query()->where('status', '!=', 'arsip')->orderByDesc('tahun')->first()
             ?? Edition::query()->orderByDesc('tahun')->first();
 
         abort_if(!$edisi, 500, 'Edisi aktif belum tersedia.');
@@ -146,15 +160,21 @@ class KaryaController extends Controller
         $pendaftaranDibuka = $this->pendaftaranMasihDibuka($edisi);
         $isBuatBaru = $request->boolean('baru');
         $karyaId = (int) $request->query('karya');
+        $selectedKarya = $this->resolveKaryaByUser($request, $karyaId);
+        $isArsipReadOnly = (bool) (
+            $selectedKarya &&
+            optional($selectedKarya->edisi)->status === 'arsip'
+        );
 
-        if (!$pendaftaranDibuka) {
+        if (!$pendaftaranDibuka && !$isArsipReadOnly) {
             return redirect()
                 ->route('peserta.daftar-karya')
                 ->with('error', 'Pendaftaran sudah ditutup. Tambah atau edit karya tidak tersedia.');
         }
 
+        $edisiForm = $isArsipReadOnly ? $selectedKarya->edisi : $edisi;
         $kategoriAktif = KategoriLomba::query()
-            ->where('edisi_lomba_id', $edisi->id)
+            ->where('edisi_lomba_id', $edisiForm->id)
             ->where('aktif', true)
             ->orderBy('urutan')
             ->orderBy('nama')
@@ -162,14 +182,18 @@ class KaryaController extends Controller
 
         $karya = null;
         if (!$isBuatBaru) {
-            $baseQuery = KaryaPeserta::query()
-                ->with('lampiran')
-                ->where('edisi_lomba_id', $edisi->id)
-                ->where('user_id', (int) $request->user()->id);
+            if ($isArsipReadOnly) {
+                $karya = $selectedKarya;
+            } else {
+                $baseQuery = KaryaPeserta::query()
+                    ->with('lampiran')
+                    ->where('edisi_lomba_id', $edisi->id)
+                    ->where('user_id', (int) $request->user()->id);
 
-            $karya = $karyaId > 0
-                ? (clone $baseQuery)->where('id', $karyaId)->first()
-                : $baseQuery->first();
+                $karya = $karyaId > 0
+                    ? (clone $baseQuery)->where('id', $karyaId)->first()
+                    : $baseQuery->first();
+            }
         }
 
         $karyaDraft = null;
@@ -199,14 +223,15 @@ class KaryaController extends Controller
         }
 
         $panduan = PanduanLomba::query()
-            ->where('edisi_lomba_id', $edisi->id)
+            ->where('edisi_lomba_id', $edisiForm->id)
             ->first();
 
         return Inertia::render('Peserta/DaftarKarya/Index', [
             'daftarKategori' => $kategoriAktif->pluck('nama')->values(),
-            'gemasiAktifLabel' => $edisi->nama . ' (' . $edisi->tahun . ')',
+            'gemasiAktifLabel' => $edisiForm->nama . ' (' . $edisiForm->tahun . ')',
             'karyaDraft' => $karyaDraft,
-            'pendaftaranDibuka' => $pendaftaranDibuka,
+            'pendaftaranDibuka' => $pendaftaranDibuka && !$isArsipReadOnly,
+            'readOnly' => $isArsipReadOnly,
             'templateProposalUrl' => $panduan?->template_proposal_path ?: null,
             'templateProposalName' => $panduan?->template_proposal_nama_tampil,
         ]);
@@ -216,10 +241,19 @@ class KaryaController extends Controller
     {
         $edisiAktif = $this->resolveEdisiAktifOrFail();
         $pendaftaranDibuka = $this->pendaftaranMasihDibuka($edisiAktif);
+        $punyaKaryaArsip = KaryaPeserta::query()
+            ->where('user_id', (int) $request->user()->id)
+            ->whereHas('edisi', function ($query) {
+                $query->where('status', 'arsip');
+            })
+            ->exists();
 
         $karya = KaryaPeserta::query()
             ->with(['lampiran', 'edisi'])
             ->where('user_id', (int) $request->user()->id)
+            ->whereHas('edisi', function ($query) {
+                $query->where('status', '!=', 'arsip');
+            })
             ->orderByDesc('updated_at')
             ->get()
             ->map(function ($item) use ($edisiAktif, $pendaftaranDibuka) {
@@ -243,6 +277,7 @@ class KaryaController extends Controller
         return Inertia::render('Peserta/DaftarKarya/List', [
             'daftarKarya' => $karya,
             'pendaftaranDibuka' => $pendaftaranDibuka,
+            'punyaKaryaArsip' => $punyaKaryaArsip,
             'gemasiAktifLabel' => $edisiAktif->nama . ' (' . $edisiAktif->tahun . ')',
         ]);
     }
@@ -516,11 +551,8 @@ class KaryaController extends Controller
 
     public function previewProposal(Request $request, KaryaPeserta $karya)
     {
-        $edisi = $this->resolveEdisiAktifOrFail();
-
         abort_unless(
-            (int) $karya->user_id === (int) $request->user()->id
-                && (int) $karya->edisi_lomba_id === (int) $edisi->id,
+            (int) $karya->user_id === (int) $request->user()->id,
             403
         );
 

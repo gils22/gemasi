@@ -7,7 +7,6 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 
 class PesertaJuriSeeder extends Seeder
 {
@@ -33,9 +32,6 @@ class PesertaJuriSeeder extends Seeder
         );
 
         $rolePeserta = Role::query()->where('name', 'peserta')->firstOrFail();
-        $roleJuri = Role::query()->where('name', 'juri')->firstOrFail();
-        $roleAdmin = Role::query()->where('name', 'admin')->firstOrFail();
-
         $pesertaData = [
             ['name' => 'Peserta 01', 'email' => 'peserta01@students.amikom.ac.id'],
             ['name' => 'Peserta 02', 'email' => 'peserta02@students.amikom.ac.id'],
@@ -47,18 +43,12 @@ class PesertaJuriSeeder extends Seeder
             ['name' => 'Peserta 08', 'email' => 'peserta08@students.amikom.ac.id'],
         ];
 
-        $juriData = [
-            ['name' => 'Juri 01', 'email' => 'juri01@amikom.ac.id'],
-            ['name' => 'Juri 02', 'email' => 'juri02@amikom.ac.id'],
-            ['name' => 'Juri 03', 'email' => 'juri03@amikom.ac.id'],
-        ];
-
         foreach ($pesertaData as $index => $data) {
             $user = User::query()->updateOrCreate(
                 ['email' => $data['email']],
                 [
                     'name' => $data['name'],
-                    'password' => Hash::make('password'),
+                    'password' => null,
                 ]
             );
 
@@ -69,25 +59,6 @@ class PesertaJuriSeeder extends Seeder
             // Dua peserta pertama juga punya riwayat tahun sebelumnya (untuk uji arsip peserta).
             if ($index < 2) {
                 $this->upsertRoleEdisi($edisiArsip->id, $user->id, $rolePeserta->id);
-            }
-        }
-
-        foreach ($juriData as $index => $data) {
-            $user = User::query()->updateOrCreate(
-                ['email' => $data['email']],
-                [
-                    'name' => $data['name'],
-                    'password' => Hash::make('password'),
-                ]
-            );
-
-            $user->roles()->syncWithoutDetaching([$roleJuri->id]);
-            $this->upsertRoleEdisi($edisiSekarang->id, $user->id, $roleJuri->id);
-
-            // Contoh aturan: panitia juga bisa sebagai juri.
-            if ($index === 0) {
-                $user->roles()->syncWithoutDetaching([$roleAdmin->id]);
-                $this->upsertRoleEdisi($edisiSekarang->id, $user->id, $roleAdmin->id);
             }
         }
     }
@@ -107,4 +78,3 @@ class PesertaJuriSeeder extends Seeder
         );
     }
 }
-

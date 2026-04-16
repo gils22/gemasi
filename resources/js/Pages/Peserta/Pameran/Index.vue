@@ -38,6 +38,7 @@ const page = usePage<
         edisiAktifLabel: string;
         bolehEdit?: boolean;
         batasPengumpulan?: string | null;
+        punyaPameranArsip?: boolean;
     }
 >();
 
@@ -45,6 +46,7 @@ const edisiLabel = computed(() => page.props.edisiAktifLabel ?? "-");
 const nominasiData = ref<NominasiItem[]>(page.props.nominasi ?? []);
 const bolehEdit = computed(() => page.props.bolehEdit !== false);
 const batasPengumpulan = computed(() => page.props.batasPengumpulan ?? null);
+const punyaPameranArsip = computed(() => page.props.punyaPameranArsip === true);
 
 watch(
     () => page.props.nominasi,
@@ -109,9 +111,7 @@ const simpanLink = (item: NominasiItem) => {
     const missingLogo = !state.logo && !item.pameran_logo_name;
     const missingVideo = !state.linkVideo.trim();
     if (missingLogo || missingVideo) {
-        toast.error(
-            "Lengkapi semua field pameran yang wajib diisi.",
-        );
+        toast.error("Lengkapi semua field pameran yang wajib diisi.");
         return;
     }
     state.saving = true;
@@ -183,12 +183,16 @@ const getVideoPreview = (url: string) => {
     <section class="space-y-4 sm:space-y-5">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-lg font-semibold text-slate-800">Pameran Karya</h1>
+                <h1 class="text-lg font-semibold text-slate-800">
+                    Pameran Karya
+                </h1>
                 <p class="text-xs text-slate-500">{{ edisiLabel }}</p>
             </div>
             <p v-if="!bolehEdit" class="text-xs text-rose-600">
                 Pengumpulan ditutup.
-                <span v-if="batasPengumpulan">Batas: {{ batasPengumpulan }}.</span>
+                <span v-if="batasPengumpulan"
+                    >Batas: {{ batasPengumpulan }}.</span
+                >
             </p>
         </div>
 
@@ -196,7 +200,12 @@ const getVideoPreview = (url: string) => {
             v-if="!nominasiData.length"
             class="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500"
         >
-            Belum ada karya yang lolos nominasi pada edisi ini.
+            <span v-if="punyaPameranArsip">
+                Data pameran dapat dilihat di menu Arsip.
+            </span>
+            <span v-else>
+                Belum ada karya yang lolos nominasi pada edisi ini.
+            </span>
         </div>
 
         <div

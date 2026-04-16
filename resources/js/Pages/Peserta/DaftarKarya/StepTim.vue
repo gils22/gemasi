@@ -13,11 +13,13 @@ import type { FormDaftarKarya } from "./types";
 
 const props = defineProps<{
     form: FormDaftarKarya;
+    readOnly?: boolean;
 }>();
 
 const MAKS_ANGGOTA = 6;
 
 const tambahAnggota = () => {
+    if (props.readOnly) return;
     if (props.form.anggotaTim.length >= MAKS_ANGGOTA) return;
     props.form.anggotaTim.push({
         nim: "",
@@ -28,6 +30,7 @@ const tambahAnggota = () => {
 };
 
 const hapusAnggota = (index: number) => {
+    if (props.readOnly) return;
     if (props.form.anggotaTim.length <= 1) return;
     props.form.anggotaTim.splice(index, 1);
 };
@@ -53,6 +56,7 @@ const hapusAnggota = (index: number) => {
                         <Input
                             v-model="form.dosenPembimbing.nik"
                             class="bg-white"
+                            :disabled="readOnly"
                             placeholder="NIK"
                         />
                     </div>
@@ -60,6 +64,7 @@ const hapusAnggota = (index: number) => {
                         <Input
                             v-model="form.dosenPembimbing.nama"
                             class="bg-white"
+                            :disabled="readOnly"
                             placeholder="Nama"
                         />
                     </div>
@@ -67,6 +72,7 @@ const hapusAnggota = (index: number) => {
                         <Input
                             v-model="form.dosenPembimbing.email"
                             class="bg-white"
+                            :disabled="readOnly"
                             placeholder="Email Amikom"
                         />
                     </div>
@@ -74,6 +80,7 @@ const hapusAnggota = (index: number) => {
                         <Input
                             v-model="form.dosenPembimbing.bidang"
                             class="bg-white"
+                            :disabled="readOnly"
                             placeholder="Bidang pembimbingan"
                         />
                     </div>
@@ -101,6 +108,7 @@ const hapusAnggota = (index: number) => {
                         <Input
                             v-model="anggota.nim"
                             class="bg-white"
+                            :disabled="readOnly"
                             placeholder="NIM"
                         />
                     </div>
@@ -108,6 +116,7 @@ const hapusAnggota = (index: number) => {
                         <Input
                             v-model="anggota.nama"
                             class="bg-white"
+                            :disabled="readOnly"
                             placeholder="Nama"
                         />
                     </div>
@@ -115,12 +124,14 @@ const hapusAnggota = (index: number) => {
                         <Input
                             v-model="anggota.email"
                             class="bg-white"
+                            :disabled="readOnly"
                             placeholder="Email Amikom"
                         />
                     </div>
                     <div class="md:col-span-2">
                         <Select
                             :model-value="anggota.peran"
+                            :disabled="readOnly"
                             @update:model-value="
                                 (val) =>
                                     (anggota.peran =
@@ -142,7 +153,7 @@ const hapusAnggota = (index: number) => {
                             variant="outline"
                             size="icon"
                             class="w-full text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                            :disabled="form.anggotaTim.length <= 1"
+                            :disabled="readOnly || form.anggotaTim.length <= 1"
                             @click="hapusAnggota(index)"
                         >
                             <Trash2 class="w-4 h-4" />
@@ -155,7 +166,7 @@ const hapusAnggota = (index: number) => {
                 type="button"
                 variant="outline"
                 class="w-full sm:w-fit"
-                :disabled="form.anggotaTim.length >= MAKS_ANGGOTA"
+                :disabled="readOnly || form.anggotaTim.length >= MAKS_ANGGOTA"
                 @click="tambahAnggota"
             >
                 <Plus class="w-4 h-4" />

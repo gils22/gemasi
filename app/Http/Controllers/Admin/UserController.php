@@ -10,7 +10,6 @@ use App\Models\KategoriLomba;
 use App\Models\PenugasanJuriKategori;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
 use Illuminate\Validation\Rule;
 
@@ -210,7 +209,7 @@ class UserController extends Controller
         $user = User::create([
             'name'     => $request->name,
             'email'    => $request->email,
-            'password' => Hash::make('password'),
+            'password' => null,
         ]);
 
         DB::transaction(function () use ($request, $edisi, $user, $juriTahap1Ids, $juriTahap2Ids, $isJuri) {

@@ -17,6 +17,7 @@ use App\Http\Controllers\TimelineLombaController;
 use App\Http\Controllers\GuidelineController;
 use App\Http\Controllers\EdisiKonteksController;
 use App\Http\Controllers\Peserta\KaryaController;
+use App\Http\Controllers\Peserta\ArsipController;
 use App\Http\Controllers\Peserta\DashboardController as PesertaDashboardController;
 use App\Http\Controllers\Peserta\PameranController;
 use App\Http\Controllers\Admin\PameranController as AdminPameranController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\PenjurianController;
 use App\Http\Controllers\PenugasanJuriController;
 use App\Http\Controllers\JuriDashboardController;
 use App\Http\Controllers\JuriSubmissionController;
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\LandingSettingController;
 use App\Http\Controllers\Admin\UserController;
@@ -43,11 +45,10 @@ Route::get('/pameran', [LandingController::class, 'pameran'])->name('landing.pam
 Route::get('/nominate', [LandingController::class, 'nominate'])->name('landing.nominate');
 Route::get('/juara', [LandingController::class, 'juara'])->name('landing.juara');
 Route::get('/juara/{id}', [LandingController::class, 'juaraDetail'])->name('landing.juara.detail');
+Route::get('/juara/logo/{karya}', [LandingController::class, 'previewJuaraLogo'])->name('landing.juara.logo.preview');
 
 Route::get('/login', function () {
-    return Inertia::render('Auth/Login', [
-        'isLocal' => app()->environment('local'),
-    ]);
+    return Inertia::render('Auth/Login');
 })->name('login');
 
 
@@ -169,38 +170,45 @@ Route::get('/auth/google/callback', function () {
     return redirect('/redirect-role');
 });
 
-/*
-|--------------------------------------------------------------------------
-| LOCAL DEV LOGIN (ADMIN / JURI)
-|--------------------------------------------------------------------------
-*/
-Route::post('/auth/local', function (Request $request) {
-    if (!app()->environment('local')) {
-        abort(404);
-    }
-
-    $data = $request->validate([
+Route::post('/auth/form', function (Request $request) {
+    $credentials = $request->validate([
         'email' => ['required', 'email'],
-        'role' => ['required', 'in:admin,juri'],
+        'password' => ['required', 'string'],
     ]);
 
-    $email = $data['email'];
-    $roleName = $data['role'];
+    $userByEmail = User::query()
+        ->where('email', $credentials['email'])
+        ->first();
 
-    $user = User::firstOrCreate(
-        ['email' => $email],
-        [
-            'name' => Str::before($email, '@'),
-            'avatar' => 'https://ui-avatars.com/api/?name=' . urlencode(Str::before($email, '@')) . '&background=2563eb&color=fff',
-        ]
-    );
+    if (
+        $userByEmail
+        && $userByEmail->roles()->where('name', 'juri')->exists()
+        && empty($userByEmail->password)
+    ) {
+        return back()->withErrors([
+            'email' => 'Juri pertama kali harus login menggunakan Google terlebih dahulu, lalu buat password di menu Informasi Akun.',
+        ])->setStatusCode(303);
+    }
 
-    if (!$user->roles()->where('name', $roleName)->exists()) {
-        $role = Role::where('name', $roleName)->first();
-        if (!$role) {
-            abort(500, "Role {$roleName} belum tersedia. Jalankan seeder roles.");
-        }
-        $user->roles()->attach($role->id);
+    if (!Auth::attempt($credentials, true)) {
+        return back()->withErrors([
+            'email' => 'Email atau password tidak sesuai.',
+        ])->setStatusCode(303);
+    }
+
+    $request->session()->regenerate();
+
+    $user = Auth::user();
+    $hasAdminOrJuri = $user?->roles()->whereIn('name', ['admin', 'juri'])->exists();
+
+    if (!$hasAdminOrJuri) {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return back()->withErrors([
+            'email' => 'Login form hanya untuk admin atau juri.',
+        ])->setStatusCode(303);
     }
 
     $tahunSekarang = (int) now()->format('Y');
@@ -210,29 +218,11 @@ Route::post('/auth/local', function (Request $request) {
         ?? Edition::query()->orderByDesc('tahun')->first();
 
     if ($edisiAktif) {
-        $roleIds = $user->roles()->pluck('roles.id');
-        if ($roleIds->isNotEmpty()) {
-            $payloadPivot = $roleIds->map(fn($roleId) => [
-                'edisi_lomba_id' => $edisiAktif->id,
-                'user_id' => $user->id,
-                'role_id' => $roleId,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ])->all();
-
-            DB::table('edisi_lomba_user_role')->upsert(
-                $payloadPivot,
-                ['edisi_lomba_id', 'user_id', 'role_id'],
-                ['updated_at']
-            );
-        }
-
         session(['edisi_aktif_id' => $edisiAktif->id]);
     }
 
-    Auth::login($user);
     return redirect('/redirect-role');
-})->name('auth.local');
+})->name('auth.form');
 
 /*
 |--------------------------------------------------------------------------
@@ -249,6 +239,9 @@ Route::get('/redirect-role', function () {
     }
 
     if ($user->hasRole('juri')) {
+        if (empty($user->password)) {
+            return redirect('/juri/akun?setup=1');
+        }
         return redirect('/juri');
     }
 
@@ -288,6 +281,10 @@ Route::middleware(['auth', 'role:peserta'])
     ->group(function () {
         Route::get('/', [PesertaDashboardController::class, 'index'])
             ->name('peserta.dashboard');
+        Route::get('/akun', [AccountController::class, 'show'])
+            ->name('peserta.account');
+        Route::get('/arsip', [ArsipController::class, 'index'])
+            ->name('peserta.arsip');
 
         Route::get('/daftar-karya', [KaryaController::class, 'daftar'])
             ->name('peserta.daftar-karya');
@@ -331,6 +328,10 @@ Route::middleware(['auth', 'role:admin'])
     ->group(function () {
         Route::get('/', [DashboardController::class, 'index'])
             ->name('admin.dashboard');
+        Route::get('/akun', [AccountController::class, 'show'])
+            ->name('admin.account');
+        Route::patch('/akun/password', [AccountController::class, 'updatePassword'])
+            ->name('admin.account.password');
 
         // FILTER VIEW
         Route::get('/peserta', [UserController::class, 'peserta'])
@@ -482,6 +483,10 @@ Route::middleware(['auth', 'role:juri'])
     ->group(function () {
         Route::get('/', [JuriDashboardController::class, 'index'])
             ->name('juri.dashboard');
+        Route::get('/akun', [AccountController::class, 'show'])
+            ->name('juri.account');
+        Route::patch('/akun/password', [AccountController::class, 'updatePassword'])
+            ->name('juri.account.password');
 
         Route::get('/submission', [JuriSubmissionController::class, 'index'])
             ->name('juri.submission.index');

@@ -18,11 +18,13 @@ const props = defineProps<{
     form: FormDaftarKarya;
     templateProposalUrl?: string | null;
     templateProposalName?: string | null;
+    readOnly?: boolean;
 }>();
 
 const maxFileSize = 5 * 1024 * 1024;
 
 const tambahLampiran = () => {
+    if (props.readOnly) return;
     props.form.lampiran.push({
         file: null,
         namaFile: "",
@@ -31,20 +33,24 @@ const tambahLampiran = () => {
 };
 
 const hapusLampiran = (index: number) => {
+    if (props.readOnly) return;
     if (props.form.lampiran.length <= 1) return;
     props.form.lampiran.splice(index, 1);
 };
 
 const tambahLinkTambahan = () => {
+    if (props.readOnly) return;
     props.form.linkTambahan.push({ label: "", url: "" });
 };
 
 const hapusLinkTambahan = (index: number) => {
+    if (props.readOnly) return;
     if (props.form.linkTambahan.length <= 1) return;
     props.form.linkTambahan.splice(index, 1);
 };
 
 const onFileChange = (event: Event, index: number) => {
+    if (props.readOnly) return;
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0] ?? null;
 
@@ -217,6 +223,7 @@ const openProposal = () => {
                     <Input
                         v-model="form.proposalLink"
                         class="bg-white"
+                        :disabled="readOnly"
                         placeholder="Tempel link proposal (Google Docs/Drive)"
                     />
                     <p class="text-xs text-slate-600">
@@ -309,6 +316,7 @@ const openProposal = () => {
                             type="file"
                             accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"
                             class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+                            :disabled="readOnly"
                             @change="onFileChange($event, index)"
                         />
                         <Button
@@ -316,7 +324,7 @@ const openProposal = () => {
                             variant="outline"
                             size="icon"
                             class="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                            :disabled="form.lampiran.length <= 1"
+                            :disabled="readOnly || form.lampiran.length <= 1"
                             @click="hapusLampiran(index)"
                         >
                             <X class="h-4 w-4" />
@@ -349,6 +357,7 @@ const openProposal = () => {
                         v-model="item.deskripsi"
                         rows="3"
                         class="w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                        :disabled="readOnly"
                         placeholder="Deskripsi lampiran wajib diisi"
                     />
                 </div>
@@ -358,6 +367,7 @@ const openProposal = () => {
                 type="button"
                 variant="outline"
                 class="w-full sm:w-fit"
+                :disabled="readOnly"
                 @click="tambahLampiran"
             >
                 <Plus class="w-4 h-4" />
@@ -382,14 +392,19 @@ const openProposal = () => {
                 >
                     <Input
                         v-model="item.label"
+                        :disabled="readOnly"
                         placeholder="Contoh: PPT / Website / Video"
                     />
-                    <Input v-model="item.url" placeholder="https://..." />
+                    <Input
+                        v-model="item.url"
+                        :disabled="readOnly"
+                        placeholder="https://..."
+                    />
                     <Button
                         type="button"
                         variant="outline"
                         size="icon"
-                        :disabled="form.linkTambahan.length <= 1"
+                        :disabled="readOnly || form.linkTambahan.length <= 1"
                         @click="hapusLinkTambahan(index)"
                     >
                         <X class="h-4 w-4" />
@@ -401,6 +416,7 @@ const openProposal = () => {
                 type="button"
                 variant="outline"
                 class="w-full sm:w-fit"
+                :disabled="readOnly"
                 @click="tambahLinkTambahan"
             >
                 <Plus class="w-4 h-4" />

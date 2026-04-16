@@ -38,6 +38,7 @@ const page = usePage<
         gemasiAktifLabel?: string | null;
         karyaDraft?: Partial<FormDaftarKarya>;
         pendaftaranDibuka?: boolean;
+        readOnly?: boolean;
         templateProposalUrl?: string | null;
         templateProposalName?: string | null;
         flash?: {
@@ -99,6 +100,7 @@ const defaultForm = (): FormDaftarKarya => ({
 const form = ref<FormDaftarKarya>(defaultForm());
 const isSavingStep = ref(false);
 const isSubmitting = ref(false);
+const isReadOnly = computed(() => Boolean(page.props.readOnly));
 
 const karyaDraft = computed(() => page.props.karyaDraft ?? null);
 const isEditMode = computed(() => Boolean(form.value.id));
@@ -219,6 +221,11 @@ const saveStepDraft = (step: number) => {
 };
 
 const goNext = () => {
+    if (isReadOnly.value) {
+        if (langkahAktif.value < totalLangkah) langkahAktif.value++;
+        return;
+    }
+
     if (!isLangkahValid.value) {
         toast.error("Lengkapi field wajib di langkah ini");
         return;
@@ -233,6 +240,8 @@ const goNext = () => {
 };
 
 const submit = () => {
+    if (isReadOnly.value) return;
+
     if (!isLangkahValid.value) {
         toast.error("Lengkapi data sebelum mengirim");
         return;
@@ -268,6 +277,12 @@ const submit = () => {
                     <Badge variant="secondary" class="max-w-full truncate">
                         {{ gemasiAktifLabel }}
                     </Badge>
+                    <Badge
+                        v-if="isReadOnly"
+                        class="bg-sky-50 text-sky-700"
+                    >
+                        Mode baca
+                    </Badge>
                 </div>
 
                 <Stepper class="mt-4">
@@ -277,7 +292,7 @@ const submit = () => {
                             :active="step.id === langkahAktif"
                             :completed="step.id < langkahAktif"
                             @click="
-                                step.id <= langkahAktif &&
+                                (isReadOnly || step.id <= langkahAktif) &&
                                     (langkahAktif = step.id)
                             "
                         >
@@ -309,11 +324,17 @@ const submit = () => {
                     v-if="langkahAktif === 1"
                     :form="form"
                     :daftar-kategori="daftarKategori"
+                    :read-only="isReadOnly"
                 />
-                <StepTim v-else-if="langkahAktif === 2" :form="form" />
+                <StepTim
+                    v-else-if="langkahAktif === 2"
+                    :form="form"
+                    :read-only="isReadOnly"
+                />
                 <StepLampiran
                     v-else
                     :form="form"
+                    :read-only="isReadOnly"
                     :template-proposal-url="templateProposalUrl"
                     :template-proposal-name="templateProposalName"
                 />
@@ -322,7 +343,16 @@ const submit = () => {
                     class="px-0 pt-2 border-t-0 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between"
                 >
                     <Button
-                        v-if="langkahAktif > 1"
+                        v-if="isReadOnly"
+                        variant="outline"
+                        class="w-full sm:w-auto"
+                        @click="router.get('/peserta/arsip')"
+                    >
+                        Kembali ke Arsip
+                    </Button>
+
+                    <Button
+                        v-else-if="langkahAktif > 1"
                         variant="outline"
                         class="w-full sm:w-auto"
                         @click="goPrev"
@@ -334,7 +364,7 @@ const submit = () => {
 
                     <Button
                         v-if="langkahAktif < totalLangkah"
-                        :disabled="!isLangkahValid || isSavingStep"
+                        :disabled="(!isReadOnly && !isLangkahValid) || isSavingStep"
                         class="w-full sm:w-auto"
                         @click="goNext"
                     >
@@ -344,7 +374,7 @@ const submit = () => {
                     </Button>
 
                     <Button
-                        v-else
+                        v-else-if="!isReadOnly"
                         :disabled="!isLangkahValid || isSubmitting"
                         class="w-full sm:w-auto"
                         @click="submit"

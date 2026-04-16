@@ -7,7 +7,6 @@ import {
     ChevronDown,
     LogOut,
     User,
-    Settings,
 } from "lucide-vue-next";
 
 import {
@@ -97,6 +96,17 @@ const displayTitle = computed(() => props.title?.trim() || fallbackTitle.value);
 
 const logout = () => {
     router.post("/logout");
+};
+
+const openAccountInfo = () => {
+    if (
+        !currentRole.value ||
+        !["admin", "juri", "peserta"].includes(currentRole.value)
+    ) {
+        return;
+    }
+
+    router.get(`/${currentRole.value}/akun`);
 };
 </script>
 
@@ -203,17 +213,13 @@ const logout = () => {
 
                     <DropdownMenuSeparator />
 
-                    <DropdownMenuItem class="gap-2 px-4 py-2 text-sm">
+                    <DropdownMenuItem
+                        class="gap-2 px-4 py-2 text-sm"
+                        @click="openAccountInfo"
+                    >
                         <User class="w-4 h-4 text-slate-500" />
                         Informasi Akun
                     </DropdownMenuItem>
-
-                    <DropdownMenuItem class="gap-2 px-4 py-2 text-sm">
-                        <Settings class="w-4 h-4 text-slate-500" />
-                        Pengaturan
-                    </DropdownMenuItem>
-
-                    <DropdownMenuSeparator />
 
                     <DropdownMenuItem
                         @click="logout"
@@ -227,4 +233,3 @@ const logout = () => {
         </div>
     </header>
 </template>
-

@@ -50,7 +50,7 @@ const jam = new Date().getHours();
 const sapaan = computed(() => {
     if (jam >= 4 && jam < 11) return "Selamat pagi";
     if (jam >= 11 && jam < 15) return "Selamat siang";
-    if (jam >= 15 && jam < 19) return "Selamat sore";
+    if (jam >= 15 && jam < 18) return "Selamat sore";
     return "Selamat malam";
 });
 const weatherIcon = computed(() => {

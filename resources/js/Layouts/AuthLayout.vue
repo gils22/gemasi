@@ -1,3 +1,7 @@
+<script setup lang="ts">
+import heroImage from "@/assets/gemasi2025.png";
+</script>
+
 <template>
     <div class="min-h-screen bg-background">
         <a
@@ -20,7 +24,8 @@
 
             <div class="relative hidden min-h-screen md:block">
                 <div
-                    class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=1600&auto=format&fit=crop&q=60&ixlib=rb-4.0.3')] bg-cover bg-center"
+                    class="absolute inset-0 bg-cover bg-center"
+                    :style="{ backgroundImage: `url(${heroImage})` }"
                 />
                 <div class="absolute inset-0 bg-slate-900/20" />
             </div>

@@ -199,8 +199,7 @@ watch(
                                 Juara GEMASI
                             </h1>
                             <p class="mx-auto max-w-2xl text-sm text-slate-600">
-                                Rekap juara setiap tahun. Pilih edisi untuk melihat
-                                karya terbaik yang masuk nominasi dan juara.
+                                Rekap juara setiap tahun.
                             </p>
                         </div>
                     </transition>

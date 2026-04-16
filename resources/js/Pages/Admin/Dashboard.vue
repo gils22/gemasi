@@ -71,7 +71,7 @@ const jam = new Date().getHours();
 const sapaan = computed(() => {
     if (jam >= 4 && jam < 11) return "Selamat pagi";
     if (jam >= 11 && jam < 15) return "Selamat siang";
-    if (jam >= 15 && jam < 19) return "Selamat sore";
+    if (jam >= 15 && jam < 18) return "Selamat sore";
     return "Selamat malam";
 });
 const weatherIcon = computed(() => {
@@ -182,13 +182,12 @@ defineOptions({
                     <div class="h-4 w-40 rounded-full bg-slate-100" />
                 </div>
             </div>
-            <div class="absolute right-4 top-4 h-6 w-20 rounded-full bg-slate-100" />
+            <div
+                class="absolute right-4 top-4 h-6 w-20 rounded-full bg-slate-100"
+            />
         </div>
 
-        <div
-            v-else
-            class="relative bg-white border rounded-2xl p-6 shadow-sm"
-        >
+        <div v-else class="relative bg-white border rounded-2xl p-6 shadow-sm">
             <div class="flex items-start gap-4">
                 <div
                     class="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-700"
@@ -384,7 +383,11 @@ defineOptions({
                 <div class="h-3 w-36 rounded-full bg-slate-100" />
             </div>
             <div class="mt-5 space-y-4">
-                <div v-for="idx in 4" :key="`cat-skel-${idx}`" class="space-y-2">
+                <div
+                    v-for="idx in 4"
+                    :key="`cat-skel-${idx}`"
+                    class="space-y-2"
+                >
                     <div class="h-3 w-40 rounded-full bg-slate-100" />
                     <div class="h-2 w-full rounded-full bg-slate-100" />
                 </div>

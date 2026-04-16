@@ -42,9 +42,15 @@ defineOptions({
         h(DashboardLayout, { title: "Daftar Karya" }, () => page),
 });
 
-const page = usePage<PageProps & { daftarKarya?: KaryaItem[] }>();
+const page = usePage<
+    PageProps & {
+        daftarKarya?: KaryaItem[];
+        punyaKaryaArsip?: boolean;
+    }
+>();
 const daftarKarya = computed(() => page.props.daftarKarya ?? []);
 const pendaftaranDibuka = Boolean(page.props.pendaftaranDibuka);
+const punyaKaryaArsip = Boolean(page.props.punyaKaryaArsip);
 const gemasiAktifLabel =
     (page.props.gemasiAktifLabel as string | undefined) ?? "-";
 
@@ -133,6 +139,9 @@ const judulKonfirmasi = computed(
                 Belum ada karya yang didaftarkan. Klik "Tambah Karya Baru" untuk
                 mulai.
             </span>
+            <span v-else-if="punyaKaryaArsip">
+                Karya yang sudah pernah didaftarkan dapat dilihat di menu Arsip.
+            </span>
             <span v-else> Belum ada karya yang terdaftar. </span>
         </div>
 
@@ -147,7 +156,9 @@ const judulKonfirmasi = computed(
             >
                 <div class="flex items-start justify-between gap-2">
                     <div class="space-y-1 min-w-0">
-                        <h3 class="text-base font-semibold text-slate-800 truncate">
+                        <h3
+                            class="text-base font-semibold text-slate-800 truncate"
+                        >
                             {{ item.nama_karya }}
                         </h3>
                         <p class="text-sm text-slate-600 truncate">
@@ -161,7 +172,11 @@ const judulKonfirmasi = computed(
                                 : 'bg-amber-50 text-amber-700'
                         "
                     >
-                        {{ item.status_tampilan === 'Lengkap' ? 'File lengkap' : 'Draft' }}
+                        {{
+                            item.status_tampilan === "Lengkap"
+                                ? "File lengkap"
+                                : "Draft"
+                        }}
                     </Badge>
                 </div>
 
@@ -237,4 +252,3 @@ const judulKonfirmasi = computed(
         </AlertDialog>
     </section>
 </template>
-

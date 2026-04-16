@@ -129,9 +129,7 @@ watch(
             (item) => String(item.id) === selectedKategori.value,
         );
         if (!exists) {
-            selectedKategori.value = items[0]
-                ? String(items[0].id)
-                : "";
+            selectedKategori.value = items[0] ? String(items[0].id) : "";
         }
     },
     { immediate: true },
@@ -182,7 +180,9 @@ const kategoriLabel = (item: NominasiItem) => {
 
                 <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                     <Select v-model="selectedEdisi">
-                        <SelectTrigger class="h-10 w-full sm:w-[220px]">
+                        <SelectTrigger
+                            class="h-10 font-semibold w-full sm:w-[220px]"
+                        >
                             <SelectValue placeholder="Pilih Tahun" />
                         </SelectTrigger>
                         <SelectContent>

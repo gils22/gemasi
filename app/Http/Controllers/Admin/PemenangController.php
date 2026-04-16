@@ -66,7 +66,10 @@ class PemenangController extends Controller
         $edisi = $this->resolveEdisiKonteks();
 
         $pemenang = PemenangKarya::query()
-            ->with(['karya:id,nama_karya,nama_kategori,anggota_tim', 'kategori:id,nama'])
+            ->with([
+                'karya:id,nama_karya,nama_kategori,anggota_tim,pameran_ringkasan,pameran_link_video,pameran_logo_nama_asli,pameran_logo_path,pameran_submitted_at',
+                'kategori:id,nama',
+            ])
             ->where('edisi_lomba_id', $edisi->id)
             ->orderBy('kategori_lomba_id')
             ->orderBy('peringkat')
@@ -87,6 +90,13 @@ class PemenangController extends Controller
                     'nama_kategori' => $row->karya?->nama_kategori ?? $row->kategori?->nama,
                     'nilai_final' => $row->nilai_final,
                     'anggota_tim' => $anggota,
+                    'pameran_ringkasan' => $row->karya?->pameran_ringkasan,
+                    'pameran_link_video' => $row->karya?->pameran_link_video,
+                    'pameran_logo_name' => $row->karya?->pameran_logo_nama_asli,
+                    'pameran_logo_url' => $row->karya?->pameran_logo_path
+                        ? route('admin.pameran.logo.preview', ['karya' => $row->karya->id])
+                        : null,
+                    'pameran_submitted_at' => $row->karya?->pameran_submitted_at?->format('d M Y, H:i'),
                 ];
             })
             ->values();

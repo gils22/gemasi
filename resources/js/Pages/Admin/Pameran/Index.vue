@@ -304,8 +304,10 @@ defineOptions({
             </template>
 
             <template #nama_karya="{ row }">
-                <div class="space-y-1">
-                    <p class="text-sm font-semibold text-slate-900">
+                <div class="max-w-[150px] sm:max-w-[170px] space-y-1">
+                    <p
+                        class="whitespace-normal break-words text-sm font-semibold text-slate-900 leading-5"
+                    >
                         {{ row.nama_karya }}
                     </p>
                     <Badge

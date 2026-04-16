@@ -343,7 +343,7 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
             <!-- LEFT SIDE -->
             <div class="flex flex-wrap items-center gap-2">
                 <!-- SEARCH -->
-                <div class="relative w-full sm:w-72">
+                <div class="relative w-full sm:w-64">
                     <Search
                         class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
                     />
@@ -452,15 +452,15 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
                     variant="destructive"
                     :disabled="selected.length === 0"
                     @click="emit('bulk-delete', selected)"
-                    class="w-full sm:w-auto min-w-[120px] flex items-center justify-center gap-2 whitespace-nowrap"
+                    class="w-full sm:w-auto inline-flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                     <Trash2 class="w-4 h-4" />
                     Delete
                     <span
+                        v-if="selected.length > 0"
                         class="bg-white/25 text-white text-xs px-2 py-0.5 rounded-full"
-                        :class="selected.length > 0 ? '' : 'invisible'"
                     >
-                        {{ selected.length || 0 }}
+                        {{ selected.length }}
                     </span>
                 </Button>
 

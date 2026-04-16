@@ -15,7 +15,8 @@ class DashboardController extends Controller
         $tahunSekarang = (int) now()->format('Y');
         $edisi = Edition::query()->where('status', 'aktif')->first()
             ?? Edition::query()->where('aktif', true)->first()
-            ?? Edition::query()->where('tahun', $tahunSekarang)->first()
+            ?? Edition::query()->where('status', '!=', 'arsip')->where('tahun', $tahunSekarang)->first()
+            ?? Edition::query()->where('status', '!=', 'arsip')->orderByDesc('tahun')->first()
             ?? Edition::query()->orderByDesc('tahun')->first();
 
         abort_if(!$edisi, 500, 'Edisi aktif belum tersedia.');
