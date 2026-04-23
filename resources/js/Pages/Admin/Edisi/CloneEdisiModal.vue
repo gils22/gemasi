@@ -28,7 +28,9 @@ const emit = defineEmits<{
 }>();
 
 const defaultSumber = computed(() => props.daftarEdisi[0]?.id ?? null);
-const defaultTahun = computed(() => (props.daftarEdisi[0]?.tahun ?? new Date().getFullYear()) + 1);
+const defaultTahun = computed(
+    () => (props.daftarEdisi[0]?.tahun ?? new Date().getFullYear()) + 1,
+);
 
 const form = useForm({
     sumber_id: 0,
@@ -48,14 +50,14 @@ watch(
         form.tahun = defaultTahun.value;
         form.nama = `GEMASI ${form.tahun}`;
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 const submit = () => {
     form.post("/admin/edisi-lomba/clone", {
         preserveScroll: true,
         onSuccess: () => {
-            toast.success("Edisi berhasil di-clone (dasar)");
+            toast.success("Edisi berhasil di-clone");
             emit("update:open", false);
         },
         onError: () => toast.error("Gagal clone edisi"),
@@ -85,23 +87,53 @@ const submit = () => {
                             {{ edisi.nama }}
                         </option>
                     </select>
-                    <p v-if="form.errors.sumber_id" class="text-xs text-destructive">{{ form.errors.sumber_id }}</p>
+                    <p
+                        v-if="form.errors.sumber_id"
+                        class="text-xs text-destructive"
+                    >
+                        {{ form.errors.sumber_id }}
+                    </p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div class="space-y-2">
-                        <Input v-model.number="form.tahun" type="number" placeholder="Tahun baru" />
-                        <p v-if="form.errors.tahun" class="text-xs text-destructive">{{ form.errors.tahun }}</p>
+                        <Input
+                            v-model.number="form.tahun"
+                            type="number"
+                            placeholder="Tahun baru"
+                        />
+                        <p
+                            v-if="form.errors.tahun"
+                            class="text-xs text-destructive"
+                        >
+                            {{ form.errors.tahun }}
+                        </p>
                     </div>
                     <div class="space-y-2">
-                        <Input v-model="form.nama" placeholder="Nama edisi baru" />
-                        <p v-if="form.errors.nama" class="text-xs text-destructive">{{ form.errors.nama }}</p>
+                        <Input
+                            v-model="form.nama"
+                            placeholder="Nama edisi baru"
+                        />
+                        <p
+                            v-if="form.errors.nama"
+                            class="text-xs text-destructive"
+                        >
+                            {{ form.errors.nama }}
+                        </p>
                     </div>
                 </div>
 
                 <DialogFooter>
-                    <Button type="button" variant="outline" @click="emit('update:open', false)">Batal</Button>
-                    <Button type="submit" :disabled="form.processing || daftarEdisi.length === 0">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        @click="emit('update:open', false)"
+                        >Batal</Button
+                    >
+                    <Button
+                        type="submit"
+                        :disabled="form.processing || daftarEdisi.length === 0"
+                    >
                         {{ form.processing ? "Memproses..." : "Clone" }}
                     </Button>
                 </DialogFooter>
@@ -109,4 +141,3 @@ const submit = () => {
         </DialogContent>
     </Dialog>
 </template>
-

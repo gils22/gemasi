@@ -229,7 +229,7 @@ defineOptions({
             :columns="columns"
             :data="tableRows"
             :withAction="true"
-            :search-keys="['nama_karya', 'peserta_nama']"
+            :search-keys="['karya', 'peserta']"
             :hidden-columns="['logo_link']"
             :export-column-keys="columns.map((col) => col.key)"
         >

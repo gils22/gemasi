@@ -43,14 +43,13 @@ class PenugasanJuriController extends Controller
         $kategori = KategoriLomba::query()
             ->where('edisi_lomba_id', $edisi->id)
             ->where('aktif', true)
-            ->orderBy('urutan')
             ->orderBy('nama')
             ->get(['id', 'nama']);
 
         $juriOptions = User::query()
             ->whereHas('editionRoles', function ($q) use ($edisi) {
                 $q->where('roles.name', 'juri')
-                    ->wherePivot('edisi_lomba_id', $edisi->id);
+                    ->where('edisi_lomba_user_role.edisi_lomba_id', $edisi->id);
             })
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
@@ -103,7 +102,7 @@ class PenugasanJuriController extends Controller
         $juriValidIds = User::query()
             ->whereHas('editionRoles', function ($q) use ($edisi) {
                 $q->where('roles.name', 'juri')
-                    ->wherePivot('edisi_lomba_id', $edisi->id);
+                    ->where('edisi_lomba_user_role.edisi_lomba_id', $edisi->id);
             })
             ->pluck('id')
             ->map(fn ($id) => (int) $id)

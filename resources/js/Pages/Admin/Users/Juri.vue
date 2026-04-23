@@ -6,6 +6,12 @@ import UserFormModal from "./UserFormModal.vue";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Plus, Eye } from "lucide-vue-next";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ref, computed, nextTick } from "vue";
 import { toast } from "vue-sonner";
 import type { PageProps } from "@/types/inertia";
@@ -40,10 +46,21 @@ type User = {
 DATA FROM BACKEND
 ========================= */
 const page = usePage<
-    PageProps & { users: User[]; kategoriOptions: { id: number; nama: string }[] }
+    PageProps & {
+        users: User[];
+        kategoriOptions: { id: number; nama: string }[];
+        dosenOptions?: Array<{
+            id: number;
+            nik?: string | null;
+            nama: string;
+            email: string;
+            bidang?: string | null;
+        }>;
+    }
 >();
 const users = computed(() => page.props.users);
 const kategoriOptions = computed(() => page.props.kategoriOptions ?? []);
+const dosenOptions = computed(() => page.props.dosenOptions ?? []);
 const kategoriMap = computed(() => {
     const map = new Map<number, string>();
     for (const item of kategoriOptions.value) {
@@ -51,7 +68,6 @@ const kategoriMap = computed(() => {
     }
     return map;
 });
-const modeArsip = computed(() => page.props.edisi?.aktif?.status === "arsip");
 const filteredUsers = computed(() => {
     return users.value.filter((user) =>
         user.roles.some((role) => role.name === "juri")
@@ -82,11 +98,6 @@ const handleCreate = () => {
 BULK DELETE
 ========================= */
 const handleBulkDelete = (ids: number[]) => {
-    if (modeArsip.value) {
-        toast.info("Mode arsip: data hanya bisa dibaca.");
-        return;
-    }
-
     if (!ids.length) return;
 
     toast.warning("Yakin ingin menghapus data?", {
@@ -146,11 +157,11 @@ defineOptions({
         :columns="columns"
         :data="filteredUsers"
         :withAction="true"
-        :showBulkDelete="!modeArsip"
+        :showBulkDelete="true"
         @bulk-delete="handleBulkDelete"
     >
         <template #toolbar-right>
-            <Button v-if="!modeArsip" @click="handleCreate">
+            <Button @click="handleCreate">
                 <Plus class="w-4 h-4" />
                 Tambah
             </Button>
@@ -230,14 +241,21 @@ defineOptions({
 
         <template #actions="{ row }">
             <div class="flex justify-end">
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    class="hidden md:inline-flex"
-                    @click="handleView(row)"
-                >
-                    <Eye class="w-4 h-4" />
-                </Button>
+                <TooltipProvider :delay-duration="150">
+                    <Tooltip>
+                        <TooltipTrigger as-child>
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                class="hidden md:inline-flex"
+                                @click="handleView(row)"
+                            >
+                                <Eye class="w-4 h-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">Detail</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
                 <Button
                     variant="outline"
                     size="sm"
@@ -254,8 +272,9 @@ defineOptions({
     <UserFormModal
         v-model:open="openCreate"
         :user="selectedUserValue"
-        :readonly="modeArsip"
+        :readonly="false"
         :kategoriOptions="kategoriOptions"
+        :dosenOptions="dosenOptions"
     />
 </template>
 

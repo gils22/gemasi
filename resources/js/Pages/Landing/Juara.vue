@@ -176,7 +176,6 @@ watch(
         fireSideCannons();
     },
 );
-
 </script>
 
 <template>
@@ -209,57 +208,57 @@ watch(
                     v-if="showWinners && edisiDenganPemenang.length"
                     class="mt-6 flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:gap-4"
                 >
-                        <div class="w-full sm:w-[200px]">
-                            <Select v-model="activeEdisiValue">
-                                <SelectTrigger
-                                    class="w-full rounded-lg border-slate-200 bg-white/80 text-sm font-semibold text-slate-900"
+                    <div class="w-full sm:w-[200px]">
+                        <Select v-model="activeEdisiValue">
+                            <SelectTrigger
+                                class="w-full rounded-lg border-slate-200 bg-white/80 text-sm font-semibold text-slate-900"
+                            >
+                                <SelectValue placeholder="Pilih Tahun" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem
+                                    v-for="edisi in edisiDenganPemenang"
+                                    :key="edisi.id"
+                                    :value="String(edisi.id)"
                                 >
-                                    <SelectValue placeholder="Pilih Tahun" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem
-                                        v-for="edisi in edisiDenganPemenang"
-                                        :key="edisi.id"
-                                        :value="String(edisi.id)"
-                                    >
-                                        {{ edisi.tahun }}
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                    {{ edisi.tahun }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-                        <div class="w-full sm:w-[240px]">
-                            <Select v-model="activeKategoriValue">
-                                <SelectTrigger
-                                    class="w-full rounded-lg border-slate-200 bg-white/80 text-sm font-semibold text-slate-900"
+                    <div class="w-full sm:w-[240px]">
+                        <Select v-model="activeKategoriValue">
+                            <SelectTrigger
+                                class="w-full rounded-lg border-slate-200 bg-white/80 text-sm font-semibold text-slate-900"
+                            >
+                                <SelectValue placeholder="Semua Kategori" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem
+                                    v-for="kategori in kategoriOptions"
+                                    :key="kategori"
+                                    :value="kategori"
                                 >
-                                    <SelectValue placeholder="Semua Kategori" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem
-                                        v-for="kategori in kategoriOptions"
-                                        :key="kategori"
-                                        :value="kategori"
-                                    >
-                                        {{ kategori }}
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                    {{ kategori }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-                        <div class="w-full sm:ml-auto sm:w-[320px]">
-                            <div class="relative">
-                                <Search
-                                    class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                                />
-                                <input
-                                    v-model="searchQuery"
-                                    type="search"
-                                    placeholder="Cari nama atau tim..."
-                                    class="w-full rounded-lg border border-slate-200 bg-white/80 py-2 pl-9 pr-3 text-sm font-semibold text-slate-900 transition focus:border-slate-400 focus:outline-none"
-                                />
-                            </div>
+                    <div class="w-full sm:ml-auto sm:w-[320px]">
+                        <div class="relative">
+                            <Search
+                                class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                            />
+                            <input
+                                v-model="searchQuery"
+                                type="search"
+                                placeholder="Cari nama atau tim..."
+                                class="w-full rounded-lg border border-slate-200 bg-white/80 py-2 pl-9 pr-3 text-sm font-semibold text-slate-900 transition focus:border-slate-400 focus:outline-none"
+                            />
                         </div>
+                    </div>
                 </div>
 
                 <div
@@ -283,9 +282,9 @@ watch(
                             <Card
                                 v-for="(row, idx) in filteredPemenang"
                                 :key="`${activeEdisi.id}-${idx}`"
-                            class="relative border-slate-200 rounded-lg"
-                        >
-                            <CardHeader class="pb-2 space-y-3">
+                                class="relative border-slate-200 rounded-lg"
+                            >
+                                <CardHeader class="pb-2 space-y-3">
                                     <div
                                         class="flex items-center justify-between"
                                     >
@@ -302,9 +301,9 @@ watch(
                                         </span>
                                     </div>
                                     <div class="flex items-center gap-3">
-                                    <div
-                                        class="flex h-14 w-14 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-400"
-                                    >
+                                        <div
+                                            class="flex h-14 w-14 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-400"
+                                        >
                                             <img
                                                 v-if="row.logo_url"
                                                 :src="row.logo_url"
@@ -365,7 +364,7 @@ watch(
                                                 </Link>
                                             </TooltipTrigger>
                                             <TooltipContent side="top">
-                                                Lihat Detail
+                                                Detail
                                             </TooltipContent>
                                         </Tooltip>
                                     </TooltipProvider>

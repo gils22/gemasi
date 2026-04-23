@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Edition;
 use App\Services\EditionStatusSynchronizer;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Illuminate\Support\Str;
@@ -28,6 +29,10 @@ class HandleInertiaRequests extends Middleware
         }
 
         $query = Edition::query()->orderByDesc('tahun');
+
+        if ($roleKonteks === null && method_exists($user, 'isSuperadmin') && $user->isSuperadmin()) {
+            return $query->get(['id', 'nama', 'tahun', 'status', 'aktif']);
+        }
 
         if ($roleKonteks === 'admin') {
             return $query->get(['id', 'nama', 'tahun', 'status', 'aktif']);
@@ -92,6 +97,26 @@ class HandleInertiaRequests extends Middleware
         }
 
         $resolvedName = $user?->name ?: Str::before($user?->email ?? '', '@');
+        $isSuperadmin = $user && method_exists($user, 'isSuperadmin') && $user->isSuperadmin();
+        $originalSuperadminId = (int) $request->session()->get('superadmin_original_user_id', 0);
+        $isImpersonating = $originalSuperadminId > 0;
+        $originalSuperadmin = null;
+        if ($isImpersonating) {
+            $original = User::query()->find($originalSuperadminId);
+            if ($original && method_exists($original, 'isSuperadmin') && $original->isSuperadmin()) {
+                $originalSuperadmin = [
+                    'id' => $original->id,
+                    'name' => $original->name ?: Str::before($original->email ?? '', '@'),
+                    'email' => $original->email,
+                    'avatar' => $original->avatar,
+                ];
+            } else {
+                // Defensive: clear invalid session.
+                $request->session()->forget('superadmin_original_user_id');
+                $isImpersonating = false;
+                $originalSuperadminId = 0;
+            }
+        }
         return [
             ...parent::share($request),
 
@@ -109,6 +134,9 @@ class HandleInertiaRequests extends Middleware
                     : null,
 
                 'role' => $roleKonteks ?? $user?->roles()->value('name'),
+                'is_superadmin' => $isSuperadmin,
+                'impersonating' => $isImpersonating,
+                'superadmin_original' => $originalSuperadmin,
             ],
 
             'edisi' => [

@@ -43,6 +43,7 @@ class KaryaPeserta extends Model
             'lolos_nominasi' => 'boolean',
             'submitted_at' => 'datetime',
             'pameran_submitted_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 

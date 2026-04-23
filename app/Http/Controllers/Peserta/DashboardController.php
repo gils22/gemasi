@@ -31,6 +31,7 @@ class DashboardController extends Controller
         $karya = KaryaPeserta::query()
             ->where('edisi_lomba_id', $edisi->id)
             ->where('user_id', (int) $request->user()->id)
+            ->whereNull('archived_at')
             ->orderByDesc('updated_at')
             ->get();
 
@@ -49,7 +50,9 @@ class DashboardController extends Controller
                     'id' => $item->id,
                     'nama_karya' => $item->nama_karya,
                     'nama_kategori' => $item->nama_kategori,
-                    'pameran_file' => $item->pameran_file_path,
+                    'pameran_logo_url' => $item->pameran_logo_path
+                        ? route('peserta.pameran.logo.preview', ['karya' => $item->id])
+                        : null,
                     'pameran_submitted_at' => $item->pameran_submitted_at?->format('d M Y, H:i'),
                 ];
             })->values(),

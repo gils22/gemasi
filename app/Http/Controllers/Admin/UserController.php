@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Role;
 use App\Models\KategoriLomba;
 use App\Models\PenugasanJuriKategori;
+use App\Models\Dosen;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -35,11 +36,6 @@ class UserController extends Controller
 
         session(['edisi_aktif_id' => $edisi->id]);
         return $edisi;
-    }
-
-    private function pastikanEdisiBukanArsip(Edition $edisi): void
-    {
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
     }
 
     /*
@@ -90,7 +86,6 @@ class UserController extends Controller
         $kategoriOptions = KategoriLomba::query()
             ->where('edisi_lomba_id', $edisi->id)
             ->where('aktif', true)
-            ->orderBy('urutan')
             ->orderBy('nama')
             ->get(['id', 'nama'])
             ->map(fn (KategoriLomba $item) => [
@@ -141,6 +136,10 @@ class UserController extends Controller
         return Inertia::render('Admin/Users/Juri', [
             'users' => $users,
             'kategoriOptions' => $kategoriOptions,
+            'dosenOptions' => Dosen::query()
+                ->where('aktif', true)
+                ->orderBy('nama')
+                ->get(['id', 'nik', 'nama', 'email', 'bidang']),
         ]);
     }
 
@@ -152,11 +151,11 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $edisi = $this->resolveEdisiKonteks($request);
-        $this->pastikanEdisiBukanArsip($edisi);
 
         $request->validate([
+            'dosen_id' => 'nullable|integer|exists:dosen,id',
             'name'  => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
+            'email' => 'required|email',
             'roles' => 'required|array|min:1',
             'roles.*' => ['required', 'string', Rule::in(['admin', 'juri', 'peserta'])],
             'juri_kategori_tahap_1_ids' => 'nullable|array',
@@ -206,11 +205,47 @@ class UserController extends Controller
             }
         }
 
-        $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
+        $name = (string) $request->name;
+        $email = (string) $request->email;
+
+        $dosenId = (int) ($request->input('dosen_id') ?? 0);
+        if ($isJuri) {
+            if ($dosenId <= 0) {
+                return back()->withErrors([
+                    'dosen_id' => 'Pilih dosen dari master Data Dosen untuk membuat akun juri.',
+                ])->setStatusCode(303);
+            }
+
+            $dosen = Dosen::query()->find($dosenId);
+            if (!$dosen || !$dosen->aktif) {
+                return back()->withErrors([
+                    'dosen_id' => 'Dosen tidak valid atau nonaktif.',
+                ])->setStatusCode(303);
+            }
+
+            $name = $dosen->nama;
+            $email = $dosen->email;
+        }
+
+        $existing = User::query()->where('email', $email)->first();
+        if ($existing && !$isJuri) {
+            return back()->withErrors([
+                'email' => 'Email sudah terdaftar.',
+            ])->setStatusCode(303);
+        }
+
+        $user = $existing ?: User::create([
+            'name'     => $name,
+            'email'    => $email,
             'password' => null,
         ]);
+
+        if ($existing) {
+            $user->update([
+                'name' => $name,
+                'email' => $email,
+            ]);
+        }
 
         DB::transaction(function () use ($request, $edisi, $user, $juriTahap1Ids, $juriTahap2Ids, $isJuri) {
             $roleIds = Role::whereIn('name', $request->roles)->pluck('id');
@@ -298,7 +333,6 @@ class UserController extends Controller
     public function update(Request $request, User $user)
 {
     $edisi = $this->resolveEdisiKonteks($request);
-    $this->pastikanEdisiBukanArsip($edisi);
 
     $request->validate([
         'name'  => 'required|string|max:255',
@@ -446,7 +480,6 @@ class UserController extends Controller
     public function bulkDelete(Request $request)
     {
         $edisi = $this->resolveEdisiKonteks($request);
-        $this->pastikanEdisiBukanArsip($edisi);
 
         $request->validate([
             'ids' => 'required|array|min:1',

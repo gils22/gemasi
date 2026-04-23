@@ -115,7 +115,7 @@ class SubmissionController extends Controller
             'kategoriOptions' => KategoriLomba::query()
                 ->where('edisi_lomba_id', $edisi->id)
                 ->where('aktif', true)
-                ->orderBy('urutan')
+                ->orderBy('nama')
                 ->get(['id', 'nama']),
         ]);
     }

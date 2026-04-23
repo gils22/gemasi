@@ -116,7 +116,8 @@ class GuidelineController extends Controller
                 'status' => $edisi->status,
                 'aktif' => (bool) $edisi->aktif,
             ],
-            'isEditable' => $edisi->status === 'aktif',
+            // Admin tetap bisa mengelola data walaupun edisi yang dipilih berstatus arsip/draft.
+            'isEditable' => $isAdmin || $edisi->status === 'aktif',
             'isAdmin' => $isAdmin,
             'basePath' => $basePath,
             'panduan' => [
@@ -139,7 +140,8 @@ class GuidelineController extends Controller
         if ((int) $validated['edisi_id'] !== (int) $edisi->id) {
             $validated['edisi_id'] = $edisi->id;
         }
-        abort_if($edisi->status !== 'aktif', 403, 'Hanya edisi aktif yang dapat diubah.');
+        $isAdmin = $request->user()?->hasRole('admin') === true;
+        abort_if(!$isAdmin && $edisi->status !== 'aktif', 403, 'Hanya edisi aktif yang dapat diubah.');
 
         $ketentuanList = array_values(array_filter(array_map(
             fn ($item) => trim((string) $item),
@@ -168,7 +170,6 @@ class GuidelineController extends Controller
         $kategori = KategoriLomba::query()
             ->where('edisi_lomba_id', $edisi->id)
             ->where('aktif', true)
-            ->orderBy('urutan')
             ->orderBy('nama')
             ->get(['id', 'nama']);
 
@@ -194,7 +195,7 @@ class GuidelineController extends Controller
                 'status' => $edisi->status,
                 'aktif' => (bool) $edisi->aktif,
             ],
-            'isEditable' => $edisi->status === 'aktif',
+            'isEditable' => $isAdmin || $edisi->status === 'aktif',
             'isAdmin' => $isAdmin,
             'basePath' => $basePath,
             'bobotKategori' => $bobotKategori,
@@ -216,7 +217,8 @@ class GuidelineController extends Controller
         if ((int) $validated['edisi_id'] !== (int) $edisi->id) {
             $validated['edisi_id'] = $edisi->id;
         }
-        abort_if($edisi->status !== 'aktif', 403, 'Hanya edisi aktif yang dapat diubah.');
+        $isAdmin = $request->user()?->hasRole('admin') === true;
+        abort_if(!$isAdmin && $edisi->status !== 'aktif', 403, 'Hanya edisi aktif yang dapat diubah.');
 
         foreach (($validated['bobot'] ?? []) as $item) {
             $total = collect($item['kriteria'] ?? [])->sum(
@@ -294,7 +296,7 @@ class GuidelineController extends Controller
                 'status' => $edisi->status,
                 'aktif' => (bool) $edisi->aktif,
             ],
-            'isEditable' => $edisi->status === 'aktif',
+            'isEditable' => $isAdmin || $edisi->status === 'aktif',
             'isAdmin' => $isAdmin,
             'basePath' => $basePath,
             'templateProposal' => [
@@ -316,7 +318,8 @@ class GuidelineController extends Controller
         if ((int) $validated['edisi_id'] !== (int) $edisi->id) {
             $validated['edisi_id'] = $edisi->id;
         }
-        abort_if($edisi->status !== 'aktif', 403, 'Hanya edisi aktif yang dapat diubah.');
+        $isAdmin = $request->user()?->hasRole('admin') === true;
+        abort_if(!$isAdmin && $edisi->status !== 'aktif', 403, 'Hanya edisi aktif yang dapat diubah.');
 
         PanduanLomba::query()->updateOrCreate(
             ['edisi_lomba_id' => $edisi->id],

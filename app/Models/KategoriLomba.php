@@ -13,7 +13,6 @@ class KategoriLomba extends Model
         'nama',
         'slug',
         'deskripsi',
-        'urutan',
         'aktif',
     ];
 

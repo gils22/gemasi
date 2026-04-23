@@ -5,7 +5,9 @@ import {
     ListIndentIncrease,
     Bell,
     ChevronDown,
+    CornerUpLeft,
     LogOut,
+    Shield,
     User,
 } from "lucide-vue-next";
 
@@ -41,6 +43,9 @@ const roleFromPath = computed(() => {
 const currentRole = computed(
     () => page.props.auth?.role?.toLowerCase() ?? roleFromPath.value,
 );
+const isSuperadmin = computed(() => page.props.auth?.is_superadmin === true);
+const isImpersonating = computed(() => page.props.auth?.impersonating === true);
+const originalSuperadmin = computed(() => page.props.auth?.superadmin_original ?? null);
 const avatarError = ref(false);
 const displayName = computed(() => {
     const name = currentUser.value?.name?.trim();
@@ -54,6 +59,7 @@ const displayName = computed(() => {
 const displayEmail = computed(() => currentUser.value?.email?.trim() || "-");
 
 const roleLabel = computed(() => {
+    if (!roleFromPath.value && isSuperadmin.value) return "Superadmin";
     if (currentRole.value === "admin") return "Admin";
     if (currentRole.value === "juri") return "Juri";
     if (currentRole.value === "peserta") return "Peserta";
@@ -98,15 +104,22 @@ const logout = () => {
     router.post("/logout");
 };
 
+const stopImpersonate = () => {
+    router.post("/superadmin/stop-impersonate");
+};
+
 const openAccountInfo = () => {
-    if (
-        !currentRole.value ||
-        !["admin", "juri", "peserta"].includes(currentRole.value)
-    ) {
+    if (isSuperadmin.value && !roleFromPath.value) {
+        router.get("/superadmin/akun");
         return;
     }
 
+    if (!currentRole.value || !["admin", "juri", "peserta"].includes(currentRole.value)) return;
     router.get(`/${currentRole.value}/akun`);
+};
+
+const openChooseRole = () => {
+    router.get("/superadmin");
 };
 </script>
 
@@ -212,6 +225,24 @@ const openAccountInfo = () => {
                     </div>
 
                     <DropdownMenuSeparator />
+
+                    <DropdownMenuItem
+                        v-if="isImpersonating"
+                        class="gap-2 px-4 py-2 text-sm"
+                        @click="stopImpersonate"
+                    >
+                        <CornerUpLeft class="w-4 h-4 text-slate-500" />
+                        Kembali ke Superadmin
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                        v-if="isSuperadmin"
+                        class="gap-2 px-4 py-2 text-sm"
+                        @click="openChooseRole"
+                    >
+                        <Shield class="w-4 h-4 text-slate-500" />
+                        Pilih Peran
+                    </DropdownMenuItem>
 
                     <DropdownMenuItem
                         class="gap-2 px-4 py-2 text-sm"

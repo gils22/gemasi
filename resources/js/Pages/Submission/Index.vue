@@ -40,7 +40,8 @@ type Submission = {
     is_lolos_nominasi: boolean;
     submitted_at: string | null;
     nilai_tahap_1: number | null;
-    peserta: {
+    peserta: string;
+    peserta_detail: {
         id: number | null;
         name: string | null;
         email: string | null;
@@ -86,7 +87,8 @@ const daftarKategori = computed(() => {
 const tableRows = computed(() =>
     submissions.value.map((item) => ({
         ...item,
-        peserta_nama: item.peserta.name ?? "",
+        peserta_detail: item.peserta,
+        peserta: item.peserta.name ?? "",
     })),
 );
 
@@ -280,7 +282,7 @@ defineOptions({
                 :data="filteredSubmissions"
                 :withAction="true"
                 :showBulkDelete="mode === 'karya' && bolehKelola"
-                :search-keys="['nama_karya', 'peserta_nama']"
+                :search-keys="['nama_karya', 'peserta']"
                 @bulk-delete="handleBulkDelete"
             >
                 <template #toolbar-left>
@@ -359,13 +361,13 @@ defineOptions({
                         <Avatar class="h-8 w-8">
                             <AvatarImage
                                 :src="
-                                    row.peserta.avatar ??
-                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(row.peserta.name ?? 'P')}&background=2563eb&color=fff`
+                                    row.peserta_detail.avatar ??
+                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(row.peserta_detail.name ?? 'P')}&background=2563eb&color=fff`
                                 "
                             />
                             <AvatarFallback>
                                 {{
-                                    (row.peserta.name ?? "P")
+                                    (row.peserta_detail.name ?? "P")
                                         .charAt(0)
                                         .toUpperCase()
                                 }}
@@ -373,10 +375,10 @@ defineOptions({
                         </Avatar>
                         <div class="min-w-0">
                             <p class="truncate font-medium text-slate-800">
-                                {{ row.peserta.name ?? "-" }}
+                                {{ row.peserta_detail.name ?? "-" }}
                             </p>
                             <p class="truncate text-xs text-slate-500">
-                                {{ row.peserta.email ?? "-" }}
+                                {{ row.peserta_detail.email ?? "-" }}
                             </p>
                         </div>
                     </div>
@@ -579,13 +581,13 @@ defineOptions({
                     <Avatar class="h-9 w-9">
                         <AvatarImage
                             :src="
-                                row.peserta.avatar ??
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(row.peserta.name ?? 'P')}&background=2563eb&color=fff`
+                                row.peserta_detail.avatar ??
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(row.peserta_detail.name ?? 'P')}&background=2563eb&color=fff`
                             "
                         />
                         <AvatarFallback>
                             {{
-                                (row.peserta.name ?? "P")
+                                (row.peserta_detail.name ?? "P")
                                     .charAt(0)
                                     .toUpperCase()
                             }}
@@ -601,8 +603,8 @@ defineOptions({
                             {{ row.nama_kategori }}
                         </p>
                         <p class="text-xs text-slate-500 wrap-break-word">
-                            {{ row.peserta.name ?? "-" }} �
-                            {{ row.peserta.email ?? "-" }}
+                            {{ row.peserta_detail.name ?? "-" }} -
+                            {{ row.peserta_detail.email ?? "-" }}
                         </p>
                         <Badge
                             v-if="row.is_lolos_nominasi"

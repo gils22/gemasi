@@ -90,6 +90,11 @@ export const admin: MenuItem[] = [
                 href: "/admin/juri",
                 icon: UserCheck,
             },
+            {
+                label: "Data Dosen",
+                href: "/admin/dosen",
+                icon: UserCheck,
+            },
         ],
     },
 ];

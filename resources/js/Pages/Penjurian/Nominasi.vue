@@ -380,7 +380,7 @@ defineOptions({
                             class="w-full"
                             @click="openDetail(row)"
                         >
-                            Lihat Detail
+                            Detail
                         </Button>
                         <Button
                             size="sm"
@@ -389,9 +389,7 @@ defineOptions({
                             as-child
                         >
                             <a :href="row.url_nilai">
-                                {{
-                                    row.sudah_dinilai ? "Edit Nilai" : "Nilai"
-                                }}
+                                {{ row.sudah_dinilai ? "Edit Nilai" : "Nilai" }}
                             </a>
                         </Button>
                     </div>
@@ -409,4 +407,3 @@ defineOptions({
 
     <div v-if="detailError" class="sr-only">{{ detailError }}</div>
 </template>
-

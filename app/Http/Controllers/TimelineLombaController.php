@@ -133,8 +133,9 @@ class TimelineLombaController extends Controller
                 'status' => $edisi->status,
                 'aktif' => (bool) $edisi->aktif,
             ],
-            'modeArsip' => $edisi->status === 'arsip',
-            'isEditable' => $edisi->status === 'aktif',
+            // Admin tetap bisa mengelola data walaupun edisi yang dipilih berstatus arsip/draft.
+            'modeArsip' => !$isAdmin && $edisi->status === 'arsip',
+            'isEditable' => $isAdmin || $edisi->status === 'aktif',
             'isAdmin' => $isAdmin,
             'basePath' => $basePath,
             'daftarEdisi' => $daftarEdisi,
@@ -154,7 +155,6 @@ class TimelineLombaController extends Controller
         abort_unless($request->user()?->hasRole('admin'), 403);
 
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
 
         $validated = $request->validate([
             'judul' => 'required|string|max:255',
@@ -205,8 +205,9 @@ class TimelineLombaController extends Controller
 
     public function update(Request $request, TimelineLomba $timeline)
     {
+        abort_unless($request->user()?->hasRole('admin'), 403);
+
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
         $this->ensureTimelineDalamEdisi($timeline, $edisi);
 
         $validated = $request->validate([
@@ -272,7 +273,6 @@ class TimelineLombaController extends Controller
         abort_unless($request->user()?->hasRole('admin'), 403);
 
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
         $this->ensureTimelineDalamEdisi($timeline, $edisi);
 
         DB::transaction(function () use ($timeline, $edisi) {
@@ -285,8 +285,9 @@ class TimelineLombaController extends Controller
 
     public function toggleAktif(Request $request, TimelineLomba $timeline)
     {
+        abort_unless($request->user()?->hasRole('admin'), 403);
+
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
         $this->ensureTimelineDalamEdisi($timeline, $edisi);
 
         $validated = $request->validate([
@@ -305,7 +306,6 @@ class TimelineLombaController extends Controller
         abort_unless($request->user()?->hasRole('admin'), 403);
 
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
 
         $validated = $request->validate([
             'ids' => 'required|array|min:1',

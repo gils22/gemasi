@@ -79,14 +79,35 @@ class User extends Authenticatable
 
     public function hasRole($role)
     {
+        if ($this->isSuperadmin()) {
+            return true;
+        }
         return $this->roles->contains('name', $role);
     }
 
     public function hasRoleInEdition(string $role, int $editionId): bool
     {
+        if ($this->isSuperadmin()) {
+            return true;
+        }
         return $this->editionRoles()
             ->where('roles.name', $role)
             ->wherePivot('edisi_lomba_id', $editionId)
             ->exists();
+    }
+
+    public function isSuperadmin(): bool
+    {
+        $email = strtolower(trim((string) ($this->email ?? '')));
+        if ($email === '') {
+            return false;
+        }
+
+        $allowed = (array) config('superadmin.emails', []);
+        $allowed = array_values(array_filter(array_map(function ($value) {
+            return strtolower(trim((string) $value));
+        }, $allowed)));
+
+        return in_array($email, $allowed, true);
     }
 }

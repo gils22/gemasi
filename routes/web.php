@@ -20,6 +20,7 @@ use App\Http\Controllers\Peserta\KaryaController;
 use App\Http\Controllers\Peserta\ArsipController;
 use App\Http\Controllers\Peserta\DashboardController as PesertaDashboardController;
 use App\Http\Controllers\Peserta\PameranController;
+use App\Http\Controllers\Peserta\JuaraController as PesertaJuaraController;
 use App\Http\Controllers\Admin\PameranController as AdminPameranController;
 use App\Http\Controllers\Admin\PemenangController;
 use App\Http\Controllers\SubmissionController;
@@ -27,11 +28,13 @@ use App\Http\Controllers\PenjurianController;
 use App\Http\Controllers\PenugasanJuriController;
 use App\Http\Controllers\JuriDashboardController;
 use App\Http\Controllers\JuriSubmissionController;
-use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\LandingSettingController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\EdisiLombaController;
+use App\Http\Controllers\Admin\DosenController;
+use App\Http\Controllers\SuperadminController;
+use App\Http\Controllers\AccountController;
 
 /*
 |--------------------------------------------------------------------------
@@ -58,37 +61,36 @@ Route::get('/login', function () {
 |--------------------------------------------------------------------------
 */
 
-Route::get('/auth/google/peserta', function () {
-    session(['google_auth_intent' => 'peserta']);
-    return Socialite::driver('google')
-        ->scopes(['openid', 'profile', 'email'])
-        ->with([
-            'hd' => 'students.amikom.ac.id',
-            'prompt' => 'select_account',
-        ])
-        ->redirect();
-});
-
-Route::get('/auth/google/admin', function () {
-    session(['google_auth_intent' => 'admin']);
+Route::get('/auth/google', function () {
+    // Single entry: role is resolved after callback based on existing roles + email domain.
     $driver = Socialite::driver('google')
         ->scopes(['openid', 'profile', 'email']);
+
     if (app()->environment('local')) {
         return $driver->with(['prompt' => 'select_account'])->redirect();
     }
 
+    // Production: keep account picker open; enforce allowed domains after callback.
     return $driver->with([
-        'hd' => 'amikom.ac.id',
         'prompt' => 'select_account',
     ])->redirect();
 });
+
+// Backward compatibility (old links)
+Route::get('/auth/google/peserta', fn () => redirect('/auth/google'))->name('auth.google.peserta');
+Route::get('/auth/google/admin', fn () => redirect('/auth/google'))->name('auth.google.admin');
 
 Route::get('/auth/google/callback', function () {
 
     $googleUser = Socialite::driver('google')->stateless()->user();
 
     $email = $googleUser->getEmail();
-    $intent = session('google_auth_intent', 'peserta');
+    $domain = Str::lower(Str::after((string) $email, '@'));
+    $superadminEmails = (array) config('superadmin.emails', []);
+    $superadminEmails = array_values(array_filter(array_map(function ($value) {
+        return Str::lower(trim((string) $value));
+    }, $superadminEmails)));
+    $isSuperadmin = in_array(Str::lower(trim((string) $email)), $superadminEmails, true);
 
     $avatar = $googleUser->getAvatar();
 
@@ -96,13 +98,21 @@ Route::get('/auth/google/callback', function () {
     $avatar = $avatar ? str_replace('=s96-c', '=s200-c', $avatar) : null;
 
     $existingUser = User::query()->where('email', $email)->first();
-    if ($intent === 'admin') {
-        $isAdminOrJuri = $existingUser?->roles()
-            ->whereIn('name', ['admin', 'juri'])
-            ->exists();
+    $existingIsAdminOrJuri = $existingUser?->roles()
+        ->whereIn('name', ['admin', 'juri'])
+        ->exists();
 
-        if (!$isAdminOrJuri && !app()->environment('local')) {
-            return redirect('/login')->with('error', 'Akun belum terdaftar sebagai admin atau juri.');
+    // Production guardrails:
+    // - students.amikom.ac.id => peserta (auto create role if missing)
+    // - amikom.ac.id => admin/juri only if registered
+    // - other domains => blocked
+    if (!app()->environment('local') && !$isSuperadmin) {
+        if ($domain === 'amikom.ac.id' && !$existingIsAdminOrJuri) {
+            return redirect('/login')->with('error', 'Email tidak terdaftar.');
+        }
+
+        if (!in_array($domain, ['amikom.ac.id', 'students.amikom.ac.id'], true)) {
+            return redirect('/login')->with('error', 'Email tidak terdaftar.');
         }
     }
     $resolvedName = $googleUser->getName()
@@ -121,7 +131,8 @@ Route::get('/auth/google/callback', function () {
         ]
     );
 
-    if ($intent === 'peserta' && !$user->roles()->exists()) {
+    // Assign role automatically for participants (students domain) if none exists.
+    if ($domain === 'students.amikom.ac.id' && !$user->roles()->exists()) {
         $role = Role::where('name', 'peserta')->first();
         if (!$role) {
             abort(500, 'Role peserta belum tersedia. Jalankan seeder roles.');
@@ -129,13 +140,11 @@ Route::get('/auth/google/callback', function () {
         $user->roles()->attach($role->id);
     }
 
-    if ($intent === 'admin' && app()->environment('local')) {
-        $hasAdminOrJuri = $user->roles()->whereIn('name', ['admin', 'juri'])->exists();
-        if (!$hasAdminOrJuri) {
-            $adminRole = Role::where('name', 'admin')->first();
-            if ($adminRole) {
-                $user->roles()->attach($adminRole->id);
-            }
+    // Local convenience: allow first Google login to become admin if no role exists yet.
+    if (app()->environment('local') && !$user->roles()->exists()) {
+        $adminRole = Role::where('name', 'admin')->first();
+        if ($adminRole) {
+            $user->roles()->attach($adminRole->id);
         }
     }
 
@@ -170,60 +179,6 @@ Route::get('/auth/google/callback', function () {
     return redirect('/redirect-role');
 });
 
-Route::post('/auth/form', function (Request $request) {
-    $credentials = $request->validate([
-        'email' => ['required', 'email'],
-        'password' => ['required', 'string'],
-    ]);
-
-    $userByEmail = User::query()
-        ->where('email', $credentials['email'])
-        ->first();
-
-    if (
-        $userByEmail
-        && $userByEmail->roles()->where('name', 'juri')->exists()
-        && empty($userByEmail->password)
-    ) {
-        return back()->withErrors([
-            'email' => 'Juri pertama kali harus login menggunakan Google terlebih dahulu, lalu buat password di menu Informasi Akun.',
-        ])->setStatusCode(303);
-    }
-
-    if (!Auth::attempt($credentials, true)) {
-        return back()->withErrors([
-            'email' => 'Email atau password tidak sesuai.',
-        ])->setStatusCode(303);
-    }
-
-    $request->session()->regenerate();
-
-    $user = Auth::user();
-    $hasAdminOrJuri = $user?->roles()->whereIn('name', ['admin', 'juri'])->exists();
-
-    if (!$hasAdminOrJuri) {
-        Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return back()->withErrors([
-            'email' => 'Login form hanya untuk admin atau juri.',
-        ])->setStatusCode(303);
-    }
-
-    $tahunSekarang = (int) now()->format('Y');
-    $edisiAktif = Edition::query()->where('status', 'aktif')->first()
-        ?? Edition::query()->where('aktif', true)->first()
-        ?? Edition::query()->where('tahun', $tahunSekarang)->first()
-        ?? Edition::query()->orderByDesc('tahun')->first();
-
-    if ($edisiAktif) {
-        session(['edisi_aktif_id' => $edisiAktif->id]);
-    }
-
-    return redirect('/redirect-role');
-})->name('auth.form');
-
 /*
 |--------------------------------------------------------------------------
 | REDIRECT BASED ON ROLE
@@ -234,14 +189,15 @@ Route::get('/redirect-role', function () {
 
     $user = auth()->user();
 
+    if ($user && method_exists($user, 'isSuperadmin') && $user->isSuperadmin()) {
+        return redirect('/superadmin');
+    }
+
     if ($user->hasRole('admin')) {
         return redirect('/admin');
     }
 
     if ($user->hasRole('juri')) {
-        if (empty($user->password)) {
-            return redirect('/juri/akun?setup=1');
-        }
         return redirect('/juri');
     }
 
@@ -252,6 +208,31 @@ Route::get('/redirect-role', function () {
     abort(403);
 
 })->middleware('auth');
+
+/*
+|--------------------------------------------------------------------------
+| SUPERADMIN
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth', 'superadmin'])
+    ->prefix('superadmin')
+    ->group(function () {
+        Route::get('/', [SuperadminController::class, 'index'])
+            ->name('superadmin.index');
+        Route::get('/pilih-peran', fn () => redirect('/superadmin'))
+            ->name('superadmin.choose');
+        Route::get('/pilih-user', [SuperadminController::class, 'pilihUser'])
+            ->name('superadmin.chooseUser');
+        Route::post('/impersonate', [SuperadminController::class, 'impersonate'])
+            ->name('superadmin.impersonate');
+        Route::get('/akun', [AccountController::class, 'show'])
+            ->name('superadmin.account');
+    });
+
+// Stop impersonation route (available while acting as another role/user).
+Route::post('/superadmin/stop-impersonate', [SuperadminController::class, 'stopImpersonate'])
+    ->middleware('auth')
+    ->name('superadmin.stopImpersonate');
 
 
 /*
@@ -266,6 +247,11 @@ Route::post('/logout', function () {
     request()->session()->regenerateToken();
     return redirect('/');
 })->middleware('auth');
+
+// Akun (umum, berlaku untuk semua role yang sedang login)
+Route::post('/akun/avatar', [AccountController::class, 'updateAvatar'])
+    ->middleware('auth')
+    ->name('account.avatar');
 
 Route::post('/konteks/edisi', [EdisiKonteksController::class, 'update'])
     ->middleware('auth')
@@ -302,6 +288,8 @@ Route::middleware(['auth', 'role:peserta'])
             ->name('peserta.daftar-karya.lampiran.preview');
         Route::delete('/daftar-karya/{karya}', [KaryaController::class, 'destroy'])
             ->name('peserta.daftar-karya.destroy');
+        Route::patch('/daftar-karya/{karya}/restore', [KaryaController::class, 'restore'])
+            ->name('peserta.daftar-karya.restore');
         Route::get('/karya-terdaftar', function () {
             return redirect()->route('peserta.daftar-karya');
         })->name('peserta.karya-terdaftar');
@@ -312,6 +300,11 @@ Route::middleware(['auth', 'role:peserta'])
             ->name('peserta.pameran.update');
         Route::get('/pameran-karya/{karya}/logo', [PameranController::class, 'previewLogo'])
             ->name('peserta.pameran.logo.preview');
+
+        Route::get('/juara', [PesertaJuaraController::class, 'index'])
+            ->name('peserta.juara.index');
+        Route::patch('/juara/{karya}', [PesertaJuaraController::class, 'update'])
+            ->name('peserta.juara.update');
 
         Route::get('/submission', function () {
             return redirect()->route('peserta.daftar-karya');
@@ -330,8 +323,6 @@ Route::middleware(['auth', 'role:admin'])
             ->name('admin.dashboard');
         Route::get('/akun', [AccountController::class, 'show'])
             ->name('admin.account');
-        Route::patch('/akun/password', [AccountController::class, 'updatePassword'])
-            ->name('admin.account.password');
 
         // FILTER VIEW
         Route::get('/peserta', [UserController::class, 'peserta'])
@@ -339,6 +330,19 @@ Route::middleware(['auth', 'role:admin'])
 
         Route::get('/juri', [UserController::class, 'juri'])
             ->name('admin.juri');
+
+        Route::get('/dosen', [DosenController::class, 'index'])
+            ->name('admin.dosen.index');
+        Route::post('/dosen', [DosenController::class, 'store'])
+            ->name('admin.dosen.store');
+        Route::post('/dosen/import', [DosenController::class, 'import'])
+            ->name('admin.dosen.import');
+        Route::put('/dosen/{dosen}', [DosenController::class, 'update'])
+            ->name('admin.dosen.update');
+        Route::patch('/dosen/{dosen}/toggle-aktif', [DosenController::class, 'toggleAktif'])
+            ->name('admin.dosen.toggleAktif');
+        Route::delete('/dosen/bulk-delete', [DosenController::class, 'bulkDelete'])
+            ->name('admin.dosen.bulkDelete');
         Route::get('/admin-juri', function () {
             return redirect()->route('admin.juri');
         })->name('admin.admin-juri');
@@ -485,8 +489,6 @@ Route::middleware(['auth', 'role:juri'])
             ->name('juri.dashboard');
         Route::get('/akun', [AccountController::class, 'show'])
             ->name('juri.account');
-        Route::patch('/akun/password', [AccountController::class, 'updatePassword'])
-            ->name('juri.account.password');
 
         Route::get('/submission', [JuriSubmissionController::class, 'index'])
             ->name('juri.submission.index');

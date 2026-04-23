@@ -176,7 +176,6 @@ class KaryaController extends Controller
         $kategoriAktif = KategoriLomba::query()
             ->where('edisi_lomba_id', $edisiForm->id)
             ->where('aktif', true)
-            ->orderBy('urutan')
             ->orderBy('nama')
             ->get(['id', 'nama']);
 
@@ -243,14 +242,18 @@ class KaryaController extends Controller
         $pendaftaranDibuka = $this->pendaftaranMasihDibuka($edisiAktif);
         $punyaKaryaArsip = KaryaPeserta::query()
             ->where('user_id', (int) $request->user()->id)
-            ->whereHas('edisi', function ($query) {
-                $query->where('status', 'arsip');
+            ->where(function ($query) {
+                $query->whereNotNull('archived_at')
+                    ->orWhereHas('edisi', function ($q) {
+                        $q->where('status', 'arsip');
+                    });
             })
             ->exists();
 
         $karya = KaryaPeserta::query()
             ->with(['lampiran', 'edisi'])
             ->where('user_id', (int) $request->user()->id)
+            ->whereNull('archived_at')
             ->whereHas('edisi', function ($query) {
                 $query->where('status', '!=', 'arsip');
             })
@@ -274,12 +277,55 @@ class KaryaController extends Controller
             })
             ->values();
 
+        $arsipPendaftaran = KaryaPeserta::query()
+            ->with('edisi')
+            ->where('user_id', (int) $request->user()->id)
+            ->whereNotNull('archived_at')
+            ->orderByDesc('archived_at')
+            ->get()
+            ->map(function ($item) use ($edisiAktif, $pendaftaranDibuka) {
+                $anggota = collect($item->anggota_tim ?? []);
+                $ketua = $anggota->firstWhere('peran', 'ketua');
+                return [
+                    'id' => $item->id,
+                    'edisi_lomba_id' => $item->edisi_lomba_id,
+                    'nama_karya' => $item->nama_karya,
+                    'nama_kategori' => $item->nama_kategori,
+                    'jumlah_anggota_tim' => $anggota->count(),
+                    'nama_ketua' => $ketua['nama'] ?? null,
+                    'status_tampilan' => 'Diarsipkan',
+                    'updated_at' => optional($item->archived_at)->toDateTimeString(),
+                    'edisi' => optional($item->edisi)->nama,
+                    'dapat_dikelola' => $pendaftaranDibuka && ((int) $item->edisi_lomba_id === (int) $edisiAktif->id),
+                ];
+            })
+            ->values();
+
         return Inertia::render('Peserta/DaftarKarya/List', [
             'daftarKarya' => $karya,
+            'arsipPendaftaran' => $arsipPendaftaran,
             'pendaftaranDibuka' => $pendaftaranDibuka,
             'punyaKaryaArsip' => $punyaKaryaArsip,
             'gemasiAktifLabel' => $edisiAktif->nama . ' (' . $edisiAktif->tahun . ')',
         ]);
+    }
+
+    public function restore(Request $request, KaryaPeserta $karya)
+    {
+        $edisi = $this->resolveEdisiAktifOrFail();
+        abort_unless($this->pendaftaranMasihDibuka($edisi), 403, 'Pendaftaran sudah ditutup.');
+
+        abort_unless(
+            (int) $karya->user_id === (int) $request->user()->id && (int) $karya->edisi_lomba_id === (int) $edisi->id,
+            403
+        );
+
+        if ($karya->archived_at) {
+            $karya->archived_at = null;
+            $karya->save();
+        }
+
+        return redirect()->route('peserta.daftar-karya')->with('success', 'Karya berhasil dipulihkan.')->setStatusCode(303);
     }
 
     public function simpanTahapSatu(Request $request)
@@ -519,18 +565,12 @@ class KaryaController extends Controller
             403
         );
 
-        $karya->load('lampiran');
+        if (!$karya->archived_at) {
+            $karya->archived_at = now();
+            $karya->save();
+        }
 
-        DB::transaction(function () use ($karya) {
-            foreach ($karya->lampiran as $lampiran) {
-                Storage::disk('public')->delete($lampiran->path_file);
-                $lampiran->delete();
-            }
-
-            $karya->delete();
-        });
-
-        return redirect()->route('peserta.daftar-karya')->with('success', 'Karya berhasil dihapus.')->setStatusCode(303);
+        return redirect()->route('peserta.daftar-karya')->with('success', 'Karya berhasil diarsipkan.')->setStatusCode(303);
     }
 
     public function previewLampiran(Request $request, LampiranKaryaPeserta $lampiran)

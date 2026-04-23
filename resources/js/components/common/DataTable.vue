@@ -95,7 +95,7 @@ const emit = defineEmits<{
             type: "excel" | "pdf";
             data: any[];
             columns: Column[];
-        }
+        },
     ): void;
 }>();
 
@@ -163,7 +163,7 @@ const exportPDF = () => {
     const head = [columns.map((col) => col.label)];
 
     const body = filteredData.value.map((row) =>
-        columns.map((col) => formatValue(row, col))
+        columns.map((col) => formatValue(row, col)),
     );
 
     autoTable(doc, {
@@ -187,6 +187,66 @@ const selected = ref<number[]>([]);
 const sortKey = ref<string | null>(null);
 const sortOrder = ref<"asc" | "desc">("asc");
 
+const searchPlaceholder = computed(() => {
+    const isExcluded = (value: string) => {
+        const v = (value ?? "").toLowerCase();
+        return (
+            v.includes("status") ||
+            v.includes("deskripsi") ||
+            v.includes("tipe") ||
+            v.includes("kategori")
+        );
+    };
+
+    const normalizeToken = (value: string) =>
+        String(value ?? "")
+            .replaceAll("_", " ")
+            .replaceAll("/", " atau ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+    const stripNamaPrefix = (value: string) => {
+        const v = normalizeToken(value);
+        if (v.toLowerCase().startsWith("nama ")) {
+            return v.slice(5).trim();
+        }
+        if (v.toLowerCase().endsWith(" nama")) {
+            return v.slice(0, -5).trim();
+        }
+        return v;
+    };
+
+    const toHint = (label: string) => {
+        const clean = stripNamaPrefix(label ?? "");
+        if (!clean) return "";
+        if (isExcluded(clean)) return "";
+        // Keep all-caps labels (e.g., NIK), otherwise make it lower for readability.
+        if (clean.toUpperCase() === clean) return clean;
+        return clean.charAt(0).toLowerCase() + clean.slice(1);
+    };
+
+    const labelForKey = (key: string) => {
+        if (isExcluded(key)) return "";
+        const col = props.columns.find((c) => c.key === key);
+        return toHint(col?.label ?? normalizeToken(key));
+    };
+
+    const keys = props.searchKeys?.length ? props.searchKeys : null;
+    const labels = (keys ? keys.map(labelForKey) : props.columns.map((c) => toHint(c.label)))
+        .filter(Boolean);
+
+    if (!labels.length) return "Cari...";
+
+    if (labels.length === 1) return `Cari ${labels[0]}...`;
+    if (labels.length === 2) return `Cari ${labels[0]} atau ${labels[1]}...`;
+
+    const shown = labels.slice(0, 3);
+    if (labels.length > 3) {
+        return `Cari ${shown[0]}, ${shown[1]}, atau lainnya...`;
+    }
+    return `Cari ${shown[0]}, ${shown[1]}, atau ${shown[2]}...`;
+});
+
 /* =========================
 VISIBLE COLUMNS
 ========================= */
@@ -209,11 +269,11 @@ watchEffect(() => {
 });
 
 const visibleColumnList = computed(() =>
-    props.columns.filter((col) => visibleColumns[col.key])
+    props.columns.filter((col) => visibleColumns[col.key]),
 );
 
 const firstVisibleColumnKey = computed(
-    () => visibleColumnList.value[0]?.key ?? null
+    () => visibleColumnList.value[0]?.key ?? null,
 );
 /* =========================
 FILTER + SORT
@@ -231,14 +291,11 @@ const filteredData = computed(() => {
                 return keys.some((key) =>
                     String(row?.[key] ?? "")
                         .toLowerCase()
-                        .includes(keyword)
+                        .includes(keyword),
                 );
             }
 
-            return Object.values(row)
-                .join(" ")
-                .toLowerCase()
-                .includes(keyword);
+            return Object.values(row).join(" ").toLowerCase().includes(keyword);
         });
     }
 
@@ -265,17 +322,17 @@ const paginatedData = computed(() => {
 });
 
 const totalPages = computed(() =>
-    Math.max(1, Math.ceil(filteredData.value.length / perPage.value))
+    Math.max(1, Math.ceil(filteredData.value.length / perPage.value)),
 );
 
 const startRecord = computed(() =>
     filteredData.value.length === 0
         ? 0
-        : (currentPage.value - 1) * perPage.value + 1
+        : (currentPage.value - 1) * perPage.value + 1,
 );
 
 const endRecord = computed(() =>
-    Math.min(currentPage.value * perPage.value, filteredData.value.length)
+    Math.min(currentPage.value * perPage.value, filteredData.value.length),
 );
 
 watch(currentPage, () => {
@@ -292,6 +349,17 @@ watch(filteredData, () => {
     }
 });
 
+// Jika data berubah (mis. setelah bulk delete), buang ID yang sudah tidak ada
+// supaya badge jumlah terpilih tidak "nyangkut".
+watch(
+    () => props.data,
+    (rows) => {
+        const ids = new Set((rows ?? []).map((r: any) => r?.id));
+        selected.value = selected.value.filter((id) => ids.has(id));
+    },
+    { deep: false },
+);
+
 /* =========================
 SELECTION
 ========================= */
@@ -301,7 +369,7 @@ const allChecked = computed({
         return (
             filteredData.value.length > 0 &&
             filteredData.value.every((row: any) =>
-                selected.value.includes(row.id)
+                selected.value.includes(row.id),
             )
         );
     },
@@ -349,7 +417,7 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
                     />
                     <Input
                         v-model="search"
-                        placeholder="Search..."
+                        :placeholder="searchPlaceholder"
                         class="pl-9 bg-white"
                     />
                 </div>
@@ -455,7 +523,7 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
                     class="w-full sm:w-auto inline-flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                     <Trash2 class="w-4 h-4" />
-                    Delete
+                    Hapus
                     <span
                         v-if="selected.length > 0"
                         class="bg-white/25 text-white text-xs px-2 py-0.5 rounded-full"
@@ -471,132 +539,144 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
         <!-- TABLE DESKTOP -->
         <div class="bg-white border rounded-xl p-4 shadow-sm">
             <div class="hidden md:block">
-            <Table>
-                <!-- ================= HEADER ================= -->
-                <TableHeader>
-                    <TableRow>
-                        <!-- Checkbox -->
-                        <TableHead class="w-12">
-                            <Checkbox v-model="allChecked" />
-                        </TableHead>
-
-                        <!-- Dynamic Columns -->
-                        <template v-for="col in columns" :key="col.key">
-                            <TableHead
-                                v-if="visibleColumns[col.key]"
-                                @click="col.sortable && toggleSort(col.key)"
-                                class="cursor-pointer select-none"
-                            >
-                                <div class="flex items-center gap-2">
-                                    {{ col.label }}
-
-                                    <!-- Default -->
-                                    <ChevronsUpDown
-                                        v-if="
-                                            col.sortable && sortKey !== col.key
-                                        "
-                                        class="w-4 h-4 text-muted-foreground"
-                                    />
-
-                                    <!-- ASC -->
-                                    <ChevronUp
-                                        v-if="
-                                            sortKey === col.key &&
-                                            sortOrder === 'asc'
-                                        "
-                                        class="w-4 h-4"
-                                    />
-
-                                    <!-- DESC -->
-                                    <ChevronDown
-                                        v-if="
-                                            sortKey === col.key &&
-                                            sortOrder === 'desc'
-                                        "
-                                        class="w-4 h-4"
-                                    />
-                                </div>
+                <Table>
+                    <!-- ================= HEADER ================= -->
+                    <TableHeader>
+                        <TableRow>
+                            <!-- Checkbox -->
+                            <TableHead class="w-12">
+                                <Checkbox v-model="allChecked" />
                             </TableHead>
+
+                            <!-- Dynamic Columns -->
+                            <template v-for="col in columns" :key="col.key">
+                                <TableHead
+                                    v-if="visibleColumns[col.key]"
+                                    @click="col.sortable && toggleSort(col.key)"
+                                    class="cursor-pointer select-none"
+                                >
+                                    <div class="flex items-center gap-2">
+                                        {{ col.label }}
+
+                                        <!-- Default -->
+                                        <ChevronsUpDown
+                                            v-if="
+                                                col.sortable &&
+                                                sortKey !== col.key
+                                            "
+                                            class="w-4 h-4 text-muted-foreground"
+                                        />
+
+                                        <!-- ASC -->
+                                        <ChevronUp
+                                            v-if="
+                                                sortKey === col.key &&
+                                                sortOrder === 'asc'
+                                            "
+                                            class="w-4 h-4"
+                                        />
+
+                                        <!-- DESC -->
+                                        <ChevronDown
+                                            v-if="
+                                                sortKey === col.key &&
+                                                sortOrder === 'desc'
+                                            "
+                                            class="w-4 h-4"
+                                        />
+                                    </div>
+                                </TableHead>
+                            </template>
+
+                            <!-- ACTION HEADER -->
+                            <TableHead
+                                v-if="withAction"
+                                class="text-right w-20"
+                            >
+                                Aksi
+                            </TableHead>
+                        </TableRow>
+                    </TableHeader>
+
+                    <!-- ================= BODY ================= -->
+                    <TableBody>
+                        <!-- ========== SKELETON ========== -->
+                        <template v-if="loading">
+                            <TableRow
+                                v-for="n in perPage"
+                                :key="'skeleton-' + n"
+                            >
+                                <TableCell>
+                                    <Skeleton class="h-4 w-4 rounded" />
+                                </TableCell>
+
+                                <template v-for="col in columns" :key="col.key">
+                                    <TableCell v-if="visibleColumns[col.key]">
+                                        <Skeleton class="h-4 w-24" />
+                                    </TableCell>
+                                </template>
+
+                                <!-- Skeleton Action -->
+                                <TableCell v-if="withAction" class="text-right">
+                                    <Skeleton
+                                        class="h-8 w-8 ml-auto rounded-md"
+                                    />
+                                </TableCell>
+                            </TableRow>
                         </template>
 
-                        <!-- ACTION HEADER -->
-                        <TableHead v-if="withAction" class="text-right w-20">
-                            Action
-                        </TableHead>
-                    </TableRow>
-                </TableHeader>
-
-                <!-- ================= BODY ================= -->
-                <TableBody>
-                    <!-- ========== SKELETON ========== -->
-                    <template v-if="loading">
-                        <TableRow v-for="n in perPage" :key="'skeleton-' + n">
-                            <TableCell>
-                                <Skeleton class="h-4 w-4 rounded" />
-                            </TableCell>
-
-                            <template v-for="col in columns" :key="col.key">
-                                <TableCell v-if="visibleColumns[col.key]">
-                                    <Skeleton class="h-4 w-24" />
-                                </TableCell>
-                            </template>
-
-                            <!-- Skeleton Action -->
-                            <TableCell v-if="withAction" class="text-right">
-                                <Skeleton class="h-8 w-8 ml-auto rounded-md" />
-                            </TableCell>
-                        </TableRow>
-                    </template>
-
-                    <!-- ========== REAL DATA ========== -->
-                    <template v-else>
-                        <TableRow
-                            v-for="row in paginatedData"
-                            :key="row.id"
-                            class="hover:bg-muted/40 transition"
-                        >
-                            <!-- Checkbox -->
-                            <TableCell>
-                                <Checkbox
-                                    :model-value="selected.includes(row.id)"
-                                    @update:model-value="
-                                        (val) =>
-                                            toggleRowSelection(row.id, !!val)
-                                    "
-                                />
-                            </TableCell>
-
-                            <!-- Dynamic Cells -->
-                            <template v-for="col in columns" :key="col.key">
-                                <TableCell v-if="visibleColumns[col.key]">
-                                    <slot :name="col.key" :row="row">
-                                        {{ row[col.key] }}
-                                    </slot>
-                                </TableCell>
-                            </template>
-
-                            <!-- ACTION CELL -->
-                            <TableCell v-if="withAction" class="text-right">
-                                <slot name="actions" :row="row" />
-                            </TableCell>
-                        </TableRow>
-
-                        <!-- ========== EMPTY STATE ========== -->
-                        <TableRow v-if="filteredData.length === 0">
-                            <TableCell
-                                :colspan="
-                                    1 +
-                                    visibleColumnList.length +
-                                    (withAction ? 1 : 0)
-                                "
-                                class="text-center py-10 text-muted-foreground"
+                        <!-- ========== REAL DATA ========== -->
+                        <template v-else>
+                            <TableRow
+                                v-for="row in paginatedData"
+                                :key="row.id"
+                                class="hover:bg-muted/40 transition"
                             >
-                                Tidak ada data
-                            </TableCell>
-                        </TableRow>
-                    </template>
-                </TableBody>
-            </Table>
+                                <!-- Checkbox -->
+                                <TableCell>
+                                    <Checkbox
+                                        :model-value="selected.includes(row.id)"
+                                        @update:model-value="
+                                            (val) =>
+                                                toggleRowSelection(
+                                                    row.id,
+                                                    !!val,
+                                                )
+                                        "
+                                    />
+                                </TableCell>
+
+                                <!-- Dynamic Cells -->
+                                <template v-for="col in columns" :key="col.key">
+                                    <TableCell v-if="visibleColumns[col.key]">
+                                        <slot :name="col.key" :row="row">
+                                            {{ row[col.key] }}
+                                        </slot>
+                                    </TableCell>
+                                </template>
+
+                                <!-- ACTION CELL -->
+                                <TableCell v-if="withAction" class="text-right">
+                                    <slot name="actions" :row="row" />
+                                </TableCell>
+                            </TableRow>
+
+                            <!-- ========== EMPTY STATE ========== -->
+                            <TableRow v-if="filteredData.length === 0">
+                                <TableCell
+                                    :colspan="
+                                        1 +
+                                        visibleColumnList.length +
+                                        (withAction ? 1 : 0)
+                                    "
+                                    class="text-center py-10 text-muted-foreground"
+                                >
+                                    Tidak ada data
+                                </TableCell>
+                            </TableRow>
+                        </template>
+                    </TableBody>
+                </Table>
             </div>
 
             <!-- MOBILE CARDS -->
@@ -622,7 +702,9 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
                         <div class="flex items-center justify-between gap-2">
                             <div class="min-w-0">
                                 <p class="text-xs text-slate-500">Data</p>
-                                <p class="text-sm font-semibold text-slate-800 truncate">
+                                <p
+                                    class="text-sm font-semibold text-slate-800 truncate"
+                                >
                                     <slot
                                         v-if="firstVisibleColumnKey"
                                         :name="firstVisibleColumnKey"
@@ -639,7 +721,9 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
 
                             <Checkbox
                                 :model-value="selected.includes(row.id)"
-                                @update:model-value="(val) => toggleRowSelection(row.id, !!val)"
+                                @update:model-value="
+                                    (val) => toggleRowSelection(row.id, !!val)
+                                "
                             />
                         </div>
 
@@ -650,7 +734,9 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
                                 v-show="col.key !== firstVisibleColumnKey"
                                 class="flex items-start justify-between gap-3 text-sm"
                             >
-                                <p class="text-slate-500 shrink-0">{{ col.label }}</p>
+                                <p class="text-slate-500 shrink-0">
+                                    {{ col.label }}
+                                </p>
                                 <p class="text-right text-slate-800 break-all">
                                     <slot :name="col.key" :row="row">
                                         {{ row[col.key] }}
@@ -677,14 +763,18 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
             </div>
 
             <!-- PAGINATION -->
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between mt-6 gap-3">
+            <div
+                class="flex flex-col md:flex-row md:items-center md:justify-between mt-6 gap-3"
+            >
                 <!-- LEFT SIDE -->
-                <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                <div
+                    class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4"
+                >
                     <!-- Page Size Selector -->
                     <div
                         class="flex items-center gap-2 text-sm text-muted-foreground"
                     >
-                        <span>Rows per page</span>
+                        <span>Baris per halaman</span>
 
                         <Select v-model="perPage">
                             <SelectTrigger class="h-8 w-20 text-sm">
@@ -701,7 +791,7 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
 
                     <!-- Showing Info -->
                     <p class="text-sm text-muted-foreground">
-                        Showing {{ startRecord }} - {{ endRecord }} of
+                        Menampilkan {{ startRecord }} - {{ endRecord }} dari
                         {{ filteredData.length }}
                     </p>
                 </div>
@@ -756,22 +846,22 @@ const toggleRowSelection = (rowId: number, checked: boolean) => {
                         :disabled="currentPage === 1"
                         @click="currentPage = Math.max(1, currentPage - 1)"
                     >
-                        Previous
+                        Sebelumnya
                     </Button>
                     <p class="text-xs text-muted-foreground">
-                        Page {{ currentPage }} / {{ totalPages }}
+                        Halaman {{ currentPage }} / {{ totalPages }}
                     </p>
                     <Button
                         variant="outline"
                         :disabled="currentPage >= totalPages"
-                        @click="currentPage = Math.min(totalPages, currentPage + 1)"
+                        @click="
+                            currentPage = Math.min(totalPages, currentPage + 1)
+                        "
                     >
-                        Next
+                        Berikutnya
                     </Button>
                 </div>
             </div>
         </div>
     </div>
 </template>
-
-

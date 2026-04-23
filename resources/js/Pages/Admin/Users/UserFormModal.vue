@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { watch, ref } from "vue";
+import { watch, ref, computed } from "vue";
 import { useForm } from "@inertiajs/vue3";
 import { toast } from "vue-sonner";
 
@@ -15,6 +15,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 /* =========================
 PROPS
@@ -23,6 +30,13 @@ const props = defineProps<{
     open: boolean;
     readonly?: boolean;
     kategoriOptions?: { id: number; nama: string }[];
+    dosenOptions?: Array<{
+        id: number;
+        nik?: string | null;
+        nama: string;
+        email: string;
+        bidang?: string | null;
+    }>;
     user?: {
         id: number;
         name: string;
@@ -41,6 +55,7 @@ const emit = defineEmits<{
 FORM STATE
 ========================= */
 const form = useForm({
+    dosen_id: null as number | null,
     name: "",
     email: "",
     roles: ["juri"] as string[],
@@ -58,6 +73,7 @@ watch(
     () => props.user,
     (val) => {
         if (val?.id) {
+            form.dosen_id = null;
             form.name = val.name ?? "";
             form.email = val.email ?? "";
             form.roles = val.roles?.map((r) => r.name) ?? [];
@@ -173,6 +189,21 @@ const handleSubmit = () => {
         });
     }
 };
+
+const isCreateMode = computed(() => !props.user?.id);
+const isCreateJuri = computed(() => isCreateMode.value && form.roles.includes("juri"));
+const dosenList = computed(() => props.dosenOptions ?? []);
+
+watch(
+    () => form.dosen_id,
+    (val) => {
+        if (!isCreateJuri.value) return;
+        const dosen = dosenList.value.find((d) => d.id === Number(val ?? 0));
+        if (!dosen) return;
+        form.name = dosen.nama;
+        form.email = dosen.email;
+    },
+);
 </script>
 
 <template>
@@ -191,12 +222,52 @@ const handleSubmit = () => {
 
                 <div class="space-y-4 py-2">
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div
+                            v-if="isCreateJuri"
+                            class="space-y-1 md:col-span-2"
+                        >
+                            <Select
+                                :model-value="form.dosen_id ? String(form.dosen_id) : ''"
+                                @update:model-value="(v) => (form.dosen_id = v ? Number(v) : null)"
+                                :disabled="props.readonly"
+                            >
+                                <SelectTrigger class="w-full bg-white">
+                                    <SelectValue placeholder="Pilih dosen" />
+                                </SelectTrigger>
+                                <SelectContent class="max-h-72">
+                                    <div
+                                        v-if="!dosenList.length"
+                                        class="px-3 py-2 text-sm text-slate-500"
+                                    >
+                                        Tidak ada data dosen
+                                    </div>
+                                    <SelectItem
+                                        v-else
+                                        v-for="d in dosenList"
+                                        :key="d.id"
+                                        :value="String(d.id)"
+                                    >
+                                        <span class="font-medium">{{ d.nama }}</span>
+                                        <span class="text-slate-500">
+                                            - {{ d.email }}
+                                        </span>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p
+                                v-if="(form.errors as any).dosen_id"
+                                class="text-xs text-destructive"
+                            >
+                                {{ (form.errors as any).dosen_id }}
+                            </p>
+                        </div>
+
                         <!-- NAME -->
                         <div class="space-y-1">
                             <Input
                                 v-model="form.name"
                                 placeholder="Nama"
-                                :disabled="props.readonly"
+                                :disabled="props.readonly || isCreateJuri"
                             />
                             <p
                                 v-if="form.errors.name"
@@ -211,7 +282,7 @@ const handleSubmit = () => {
                             <Input
                                 v-model="form.email"
                                 placeholder="Email"
-                                :disabled="props.readonly"
+                                :disabled="props.readonly || isCreateJuri"
                             />
                             <p
                                 v-if="form.errors.email"

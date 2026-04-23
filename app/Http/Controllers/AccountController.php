@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,39 +19,36 @@ class AccountController extends Controller
                 'name' => $user?->name,
                 'email' => $user?->email,
                 'avatar' => $user?->avatar,
-                'has_password' => !empty($user?->password),
             ],
-            'requirePasswordSetup' => $request->query('setup') === '1' && empty($user?->password),
         ]);
     }
 
-    public function updatePassword(Request $request): RedirectResponse
+    public function updateAvatar(Request $request): RedirectResponse
     {
         $user = $request->user();
-        $hasPassword = !empty($user?->password);
 
         $validated = $request->validate([
-            'current_password' => [$hasPassword ? 'required' : 'nullable', 'string'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'avatar' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ], [
-            'current_password.required' => 'Password saat ini wajib diisi.',
-            'password.confirmed' => 'Konfirmasi password tidak sesuai.',
-            'password.min' => 'Password minimal 8 karakter.',
+            'avatar.required' => 'Silakan pilih foto profil.',
+            'avatar.image' => 'File harus berupa gambar.',
+            'avatar.mimes' => 'Format gambar harus jpg, jpeg, png, atau webp.',
+            'avatar.max' => 'Ukuran gambar maksimal 2MB.',
         ]);
 
-        if ($hasPassword && !Hash::check($validated['current_password'], (string) $user->password)) {
-            return back()->withErrors([
-                'current_password' => 'Password saat ini tidak sesuai.',
-            ])->setStatusCode(303);
+        $file = $validated['avatar'];
+        $path = $file->store('avatars', 'public');
+
+        // Hapus avatar lama jika tersimpan di storage lokal (bukan URL).
+        $old = (string) ($user?->avatar ?? '');
+        if ($old !== '' && !str_starts_with($old, 'http://') && !str_starts_with($old, 'https://')) {
+            Storage::disk('public')->delete($old);
         }
 
         $user->update([
-            'password' => $validated['password'],
+            'avatar' => $path,
         ]);
 
-        return redirect()->back()->with('success', $hasPassword
-            ? 'Password berhasil diperbarui.'
-            : 'Password berhasil dibuat.'
-        )->setStatusCode(303);
+        return redirect()->back()->with('success', 'Foto profil berhasil diperbarui.')->setStatusCode(303);
     }
 }

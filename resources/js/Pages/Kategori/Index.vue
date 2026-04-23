@@ -8,6 +8,12 @@ import DataTable from "@/components/common/DataTable.vue";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import FormModal from "./FormModal.vue";
 
 type Kategori = {
@@ -15,7 +21,6 @@ type Kategori = {
     nama: string;
     slug: string;
     deskripsi: string | null;
-    urutan: number;
     aktif: boolean;
     created_at: string;
 };
@@ -53,7 +58,6 @@ const selectedKategori = ref<Kategori | null>(null);
 const columns = [
     { key: "nama", label: "Nama", sortable: true },
     { key: "deskripsi", label: "Deskripsi" },
-    { key: "urutan", label: "Urutan", sortable: true },
     { key: "aktif", label: "Status" },
 ];
 
@@ -93,18 +97,21 @@ const handleBulkDelete = (ids: number[]) => {
 const toggleKategoriAktif = (row: Kategori, value: boolean) => {
     if (!canEdit.value) return;
 
-    router.patch(`${basePath.value}/kategori/${row.id}/toggle-aktif`, {
-        aktif: value,
-    }, {
-        preserveScroll: true,
-        onSuccess: () =>
-            toast.success(
-                `Kategori ${row.nama} ${value ? "diaktifkan" : "dinonaktifkan"}`
-            ),
-        onError: () => toast.error("Gagal mengubah status kategori"),
-    });
+    router.patch(
+        `${basePath.value}/kategori/${row.id}/toggle-aktif`,
+        {
+            aktif: value,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () =>
+                toast.success(
+                    `Kategori ${row.nama} ${value ? "diaktifkan" : "dinonaktifkan"}`,
+                ),
+            onError: () => toast.error("Gagal mengubah status kategori"),
+        },
+    );
 };
-
 
 defineOptions({
     layout: (h, page) => h(DashboardLayout, { title: "Kategori" }, () => page),
@@ -141,7 +148,9 @@ defineOptions({
                     <Switch
                         :model-value="row.aktif"
                         :disabled="!canEdit"
-                        @update:model-value="(val) => toggleKategoriAktif(row, val === true)"
+                        @update:model-value="
+                            (val) => toggleKategoriAktif(row, val === true)
+                        "
                     />
                     <Badge
                         :class="
@@ -157,15 +166,24 @@ defineOptions({
 
             <template #actions="{ row }: { row: Kategori }">
                 <div class="flex items-center justify-end gap-1">
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        class="hidden md:inline-flex"
-                        :disabled="!canEdit"
-                        @click="editKategori(row)"
-                    >
-                        <Eye class="w-4 h-4" />
-                    </Button>
+                    <TooltipProvider :delay-duration="150">
+                        <Tooltip>
+                            <TooltipTrigger as-child>
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    class="hidden md:inline-flex"
+                                    :disabled="!canEdit"
+                                    @click="editKategori(row)"
+                                >
+                                    <Eye class="w-4 h-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                                Detail
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                     <Button
                         variant="outline"
                         size="sm"
@@ -189,4 +207,3 @@ defineOptions({
         :can-edit="canEdit"
     />
 </template>
-

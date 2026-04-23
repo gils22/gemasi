@@ -18,7 +18,14 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Eye, Plus, Trash2, Users } from "lucide-vue-next";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Archive, Eye, Plus, RotateCcw, Trash2, Users } from "lucide-vue-next";
 import type { PageProps } from "@/types/inertia";
 import { Link, router, usePage } from "@inertiajs/vue3";
 import { computed, ref } from "vue";
@@ -45,14 +52,18 @@ defineOptions({
 const page = usePage<
     PageProps & {
         daftarKarya?: KaryaItem[];
+        arsipPendaftaran?: KaryaItem[];
         punyaKaryaArsip?: boolean;
     }
 >();
 const daftarKarya = computed(() => page.props.daftarKarya ?? []);
+const arsipPendaftaran = computed(() => page.props.arsipPendaftaran ?? []);
 const pendaftaranDibuka = Boolean(page.props.pendaftaranDibuka);
 const punyaKaryaArsip = Boolean(page.props.punyaKaryaArsip);
 const gemasiAktifLabel =
     (page.props.gemasiAktifLabel as string | undefined) ?? "-";
+
+const arsipOpen = ref(false);
 
 const modalHapusTerbuka = ref(false);
 const karyaDipilih = ref<KaryaItem | null>(null);
@@ -82,10 +93,10 @@ const konfirmasiHapus = () => {
     router.delete(`/peserta/daftar-karya/${karyaDipilih.value.id}`, {
         preserveScroll: true,
         onSuccess: () => {
-            toast.success("Karya berhasil dihapus.");
+            toast.success("Karya berhasil diarsipkan.");
         },
         onError: () => {
-            toast.error("Gagal menghapus karya.");
+            toast.error("Gagal mengarsipkan karya.");
         },
         onFinish: () => {
             modalHapusTerbuka.value = false;
@@ -97,6 +108,18 @@ const konfirmasiHapus = () => {
 const judulKonfirmasi = computed(
     () => karyaDipilih.value?.nama_karya ?? "karya ini",
 );
+
+const pulihkan = (item: KaryaItem) => {
+    router.patch(
+        `/peserta/daftar-karya/${item.id}/restore`,
+        {},
+        {
+            preserveScroll: true,
+            onSuccess: () => toast.success("Karya berhasil dipulihkan."),
+            onError: () => toast.error("Gagal memulihkan karya."),
+        },
+    );
+};
 </script>
 
 <template>
@@ -140,7 +163,8 @@ const judulKonfirmasi = computed(
                 mulai.
             </span>
             <span v-else-if="punyaKaryaArsip">
-                Karya yang sudah pernah didaftarkan dapat dilihat di menu Arsip.
+                Karya yang sudah pernah didaftarkan dapat dilihat di menu Arsip
+                atau ikon arsip di kanan bawah.
             </span>
             <span v-else> Belum ada karya yang terdaftar. </span>
         </div>
@@ -218,19 +242,122 @@ const judulKonfirmasi = computed(
                             <TooltipTrigger as-child>
                                 <Button
                                     type="button"
-                                    variant="destructive"
+                                    variant="outline"
                                     size="icon-sm"
+                                    class="text-slate-500 border-slate-200 hover:border-rose-200 hover:text-rose-600"
                                     @click="bukaModalHapus(item)"
                                 >
                                     <Trash2 class="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Hapus Karya</TooltipContent>
+                            <TooltipContent>Hapus</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
                 </div>
             </article>
         </div>
+
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger as-child>
+                    <Button
+                        v-if="arsipPendaftaran.length"
+                        type="button"
+                        size="icon"
+                        class="fixed bottom-6 right-6 z-50 h-12 w-12 rounded-full shadow-lg"
+                        @click="arsipOpen = true"
+                    >
+                        <Archive class="h-5 w-5" />
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>Arsip pendaftaran</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+
+        <Dialog v-model:open="arsipOpen">
+            <DialogContent class="sm:max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Arsip Pendaftaran</DialogTitle>
+                    <DialogDescription>
+                        Karya yang Anda Hapus dari Daftar Karya. Anda bisa
+                        memulihkannya selama pendaftaran masih dibuka.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div
+                    v-if="!arsipPendaftaran.length"
+                    class="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500"
+                >
+                    Belum ada karya yang diarsipkan.
+                </div>
+
+                <div
+                    v-else
+                    class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-2"
+                >
+                    <article
+                        v-for="item in arsipPendaftaran"
+                        :key="`arsip-${item.id}`"
+                        class="rounded-lg border border-slate-200 bg-white p-4 flex flex-col gap-3"
+                    >
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="space-y-1 min-w-0">
+                                <h3
+                                    class="text-base font-semibold text-slate-800 truncate"
+                                >
+                                    {{ item.nama_karya }}
+                                </h3>
+                                <p class="text-sm text-slate-600 truncate">
+                                    {{ item.nama_kategori }} -
+                                    {{ item.edisi ?? "-" }}
+                                </p>
+                            </div>
+                            <Badge class="bg-slate-100 text-slate-700">
+                                Diarsipkan
+                            </Badge>
+                        </div>
+
+                        <div class="space-y-1 text-sm text-slate-600">
+                            <div class="inline-flex items-center gap-1">
+                                <Users class="h-4 w-4 text-slate-500" />
+                                <span>
+                                    {{ item.jumlah_anggota_tim }} anggota tim
+                                </span>
+                            </div>
+                            <div class="truncate">
+                                <span class="text-slate-500">Ketua:</span>
+                                {{ item.nama_ketua ?? "-" }}
+                            </div>
+                            <div>
+                                <span class="text-slate-500">Diarsipkan:</span>
+                                {{ formatDateTime(item.updated_at) }}
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="item.dapat_dikelola"
+                            class="mt-auto flex flex-wrap gap-2"
+                        >
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon-sm"
+                                            @click="pulihkan(item)"
+                                        >
+                                            <RotateCcw class="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Pulihkan</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
+                    </article>
+                </div>
+            </DialogContent>
+        </Dialog>
 
         <AlertDialog v-model:open="modalHapusTerbuka">
             <AlertDialogContent>
@@ -239,7 +366,8 @@ const judulKonfirmasi = computed(
                     <AlertDialogDescription>
                         Anda yakin ingin menghapus
                         <strong>{{ judulKonfirmasi }}</strong
-                        >? Data yang dihapus tidak bisa dikembalikan.
+                        >? Karya akan dipindahkan ke Arsip dan tidak tampil di
+                        Daftar Karya.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

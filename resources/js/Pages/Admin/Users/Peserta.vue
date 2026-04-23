@@ -21,7 +21,6 @@ type User = {
 };
 
 const page = usePage<PageProps & { users: User[] }>();
-const modeArsip = computed(() => page.props.edisi?.aktif?.status === "arsip");
 
 const columns = [
     {
@@ -37,11 +36,6 @@ const columns = [
 ];
 
 const handleBulkDelete = (ids: number[]) => {
-    if (modeArsip.value) {
-        toast.info("Mode arsip: data hanya bisa dibaca.");
-        return;
-    }
-
     if (!ids.length) return;
 
     toast.warning("Yakin ingin menghapus data peserta?", {
@@ -78,7 +72,7 @@ defineOptions({
         :columns="columns"
         :data="page.props.users"
         :withAction="false"
-        :showBulkDelete="!modeArsip"
+        :showBulkDelete="true"
         @bulk-delete="handleBulkDelete"
     >
         <template #name="{ row }: { row: User }">

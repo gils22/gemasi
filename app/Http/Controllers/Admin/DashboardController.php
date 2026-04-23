@@ -114,7 +114,7 @@ class DashboardController extends Controller
 
         $kategoriStats = KategoriLomba::query()
             ->where('edisi_lomba_id', $edisi->id)
-            ->orderBy('urutan')
+            ->orderBy('nama')
             ->get(['id', 'nama'])
             ->map(function ($kategori) use ($kategoriCounts) {
                 return [

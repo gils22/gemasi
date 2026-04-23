@@ -146,7 +146,7 @@ class LandingController extends Controller
             $kategoriRaw = KategoriLomba::query()
                 ->where('edisi_lomba_id', $edisi->id)
                 ->where('aktif', true)
-                ->orderBy('urutan')
+                ->orderBy('nama')
                 ->get(['id', 'nama', 'slug', 'deskripsi']);
 
             $bobotMap = BobotPenilaianKategori::query()
@@ -221,7 +221,7 @@ class LandingController extends Controller
             $kategoriRaw = KategoriLomba::query()
                 ->where('edisi_lomba_id', $edisi->id)
                 ->where('aktif', true)
-                ->orderBy('urutan')
+                ->orderBy('nama')
                 ->get(['id', 'nama', 'slug', 'deskripsi']);
 
             $bobotMap = BobotPenilaianKategori::query()
@@ -279,7 +279,7 @@ class LandingController extends Controller
         $kategoriOptions = KategoriLomba::query()
             ->whereIn('edisi_lomba_id', $daftarEdisi->pluck('id'))
             ->where('aktif', true)
-            ->orderBy('urutan')
+            ->orderBy('nama')
             ->get(['id', 'nama', 'edisi_lomba_id']);
 
         $nominasi = KaryaPeserta::query()

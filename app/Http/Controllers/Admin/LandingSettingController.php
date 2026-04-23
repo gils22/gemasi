@@ -88,7 +88,7 @@ class LandingSettingController extends Controller
         if ($edisi) {
             $kategori = KategoriLomba::query()
                 ->where('edisi_lomba_id', $edisi->id)
-                ->orderBy('urutan')
+                ->orderBy('nama')
                 ->get(['id', 'nama', 'slug', 'deskripsi', 'aktif']);
 
             $timeline = TimelineLomba::query()

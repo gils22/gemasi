@@ -6,6 +6,12 @@ import DashboardLayout from "@/Layouts/DashboardLayout.vue";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -14,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import PameranModal from "@/Pages/Peserta/Pameran/PameranModal.vue";
 import type { PageProps } from "@/types/inertia";
-import { Users } from "lucide-vue-next";
+import { Eye, Users } from "lucide-vue-next";
 
 type ArsipKaryaItem = {
     id: number;
@@ -157,7 +163,9 @@ const savePameran = (item: ArsipPameranItem) => {
             forceFormData: true,
             onSuccess: () => {
                 toast.success("Data pameran arsip berhasil diperbarui.");
-                const target = arsipPameran.value.find((entry) => entry.id === item.id);
+                const target = arsipPameran.value.find(
+                    (entry) => entry.id === item.id,
+                );
                 if (target) {
                     if (state.logoPreview) {
                         target.pameran_logo_url = state.logoPreview;
@@ -208,7 +216,9 @@ const openKaryaDetail = (id: number) => {
 
 <template>
     <section class="space-y-6">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div
+            class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        >
             <div>
                 <h1 class="text-lg font-semibold text-slate-900">Arsip</h1>
                 <p class="text-sm text-slate-500">
@@ -288,7 +298,9 @@ const openKaryaDetail = (id: number) => {
                     <div class="space-y-2">
                         <div class="flex items-start justify-between gap-2">
                             <div class="min-w-0">
-                                <h3 class="truncate text-base font-semibold text-slate-800">
+                                <h3
+                                    class="truncate text-base font-semibold text-slate-800"
+                                >
                                     {{ item.nama_karya }}
                                 </h3>
                                 <p class="truncate text-sm text-slate-600">
@@ -313,20 +325,35 @@ const openKaryaDetail = (id: number) => {
                         <div class="space-y-1 text-sm text-slate-600">
                             <div class="inline-flex items-center gap-1">
                                 <Users class="h-4 w-4 text-slate-500" />
-                                <span>{{ item.jumlah_anggota_tim }} anggota tim</span>
+                                <span
+                                    >{{ item.jumlah_anggota_tim }} anggota
+                                    tim</span
+                                >
                             </div>
                             <p>Ketua: {{ item.nama_ketua ?? "-" }}</p>
                             <p>Diperbarui: {{ item.updated_at ?? "-" }}</p>
                         </div>
 
-                        <Button
-                            type="button"
-                            variant="outline"
-                            class="w-full"
-                            @click="openKaryaDetail(item.id)"
-                        >
-                            Lihat Detail
-                        </Button>
+                        <div class="flex justify-end pt-1">
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon-sm"
+                                            @click="openKaryaDetail(item.id)"
+                                        >
+                                            <Eye class="h-4 w-4" />
+                                            <span class="sr-only">
+                                                Detail
+                                            </span>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent> Detail </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
                     </div>
                 </article>
             </div>
@@ -396,7 +423,9 @@ const openKaryaDetail = (id: number) => {
                             <span v-else>
                                 {{
                                     item.nama_karya
-                                        ? item.nama_karya.slice(0, 2).toUpperCase()
+                                        ? item.nama_karya
+                                              .slice(0, 2)
+                                              .toUpperCase()
                                         : "GK"
                                 }}
                             </span>

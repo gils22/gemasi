@@ -17,7 +17,6 @@ type Kategori = {
     id: number;
     nama: string;
     deskripsi: string | null;
-    urutan: number;
     aktif: boolean;
 };
 
@@ -36,7 +35,6 @@ const emit = defineEmits<{
 const form = useForm({
     nama: "",
     deskripsi: "",
-    urutan: 0,
     aktif: true,
 });
 
@@ -48,7 +46,6 @@ watch(
         if (val) {
             form.nama = val.nama ?? "";
             form.deskripsi = val.deskripsi ?? "";
-            form.urutan = val.urutan ?? 0;
             form.aktif = !!val.aktif;
             return;
         }
@@ -133,29 +130,14 @@ const submit = () => {
                     </p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Urutan</label>
-                        <Input
-                            v-model.number="form.urutan"
-                            type="number"
-                            min="0"
-                            placeholder="Urutan tampil"
+                <div class="space-y-2">
+                    <label class="text-sm font-medium">Status</label>
+                    <div class="flex items-center justify-between rounded-lg border px-3 py-2 h-10">
+                        <span class="text-sm">Kategori aktif</span>
+                        <Switch
+                            :model-value="form.aktif"
+                            @update:model-value="(val) => (form.aktif = val === true)"
                         />
-                        <p v-if="form.errors.urutan" class="text-xs text-destructive">
-                            {{ form.errors.urutan }}
-                        </p>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-sm font-medium">Status</label>
-                        <div class="flex items-center justify-between rounded-lg border px-3 py-2 h-10">
-                            <span class="text-sm">Kategori aktif</span>
-                            <Switch
-                                :model-value="form.aktif"
-                                @update:model-value="(val) => (form.aktif = val === true)"
-                            />
-                        </div>
                     </div>
                 </div>
 

@@ -59,7 +59,6 @@ class KategoriLombaController extends Controller
 
         $kategori = KategoriLomba::query()
             ->where('edisi_lomba_id', $edisi->id)
-            ->orderBy('urutan')
             ->orderBy('nama')
             ->get();
 
@@ -72,8 +71,10 @@ class KategoriLombaController extends Controller
                 'status' => $edisi->status,
                 'aktif' => (bool) $edisi->aktif,
             ],
-            'modeArsip' => $edisi->status === 'arsip',
-            'isEditable' => $edisi->status === 'aktif',
+            // Admin tetap bisa mengelola data walaupun edisi yang dipilih berstatus arsip/draft.
+            // Mode arsip hanya berlaku untuk role non-admin (jika suatu saat halaman ini dipakai lintas role).
+            'modeArsip' => !$isAdmin && $edisi->status === 'arsip',
+            'isEditable' => $isAdmin || $edisi->status === 'aktif',
             'isAdmin' => $isAdmin,
             'basePath' => $basePath,
             'daftarEdisi' => $daftarEdisi,
@@ -85,12 +86,10 @@ class KategoriLombaController extends Controller
         abort_unless($request->user()?->hasRole('admin'), 403);
 
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
 
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'deskripsi' => 'nullable|string|max:2000',
-            'urutan' => 'nullable|integer|min:0|max:9999',
             'aktif' => 'nullable|boolean',
         ]);
 
@@ -113,7 +112,6 @@ class KategoriLombaController extends Controller
             'nama' => $nama,
             'slug' => $slug,
             'deskripsi' => $validated['deskripsi'] ?? null,
-            'urutan' => (int) ($validated['urutan'] ?? 0),
             'aktif' => (bool) ($validated['aktif'] ?? true),
         ]);
 
@@ -122,14 +120,14 @@ class KategoriLombaController extends Controller
 
     public function update(Request $request, KategoriLomba $kategori)
     {
+        abort_unless($request->user()?->hasRole('admin'), 403);
+
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
         $this->ensureKategoriDalamEdisi($kategori, $edisi);
 
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'deskripsi' => 'nullable|string|max:2000',
-            'urutan' => 'nullable|integer|min:0|max:9999',
             'aktif' => 'nullable|boolean',
         ]);
 
@@ -152,7 +150,6 @@ class KategoriLombaController extends Controller
             'nama' => $nama,
             'slug' => $slug,
             'deskripsi' => $validated['deskripsi'] ?? null,
-            'urutan' => (int) ($validated['urutan'] ?? 0),
             'aktif' => (bool) ($validated['aktif'] ?? true),
         ]);
 
@@ -164,7 +161,6 @@ class KategoriLombaController extends Controller
         abort_unless($request->user()?->hasRole('admin'), 403);
 
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
         $this->ensureKategoriDalamEdisi($kategori, $edisi);
 
         $kategori->delete();
@@ -174,8 +170,9 @@ class KategoriLombaController extends Controller
 
     public function toggleAktif(Request $request, KategoriLomba $kategori)
     {
+        abort_unless($request->user()?->hasRole('admin'), 403);
+
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
         $this->ensureKategoriDalamEdisi($kategori, $edisi);
 
         $validated = $request->validate([
@@ -194,7 +191,6 @@ class KategoriLombaController extends Controller
         abort_unless($request->user()?->hasRole('admin'), 403);
 
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_if($edisi->status === 'arsip', 403, 'Mode arsip hanya bisa dibaca.');
 
         $validated = $request->validate([
             'ids' => 'required|array|min:1',

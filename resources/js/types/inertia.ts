@@ -19,6 +19,9 @@ export interface PageProps extends InertiaPageProps {
     auth: {
         user: User | null;
         role: string | null;
+        is_superadmin?: boolean;
+        impersonating?: boolean;
+        superadmin_original?: User | null;
     };
     edisi: {
         aktif: Edisi | null;
