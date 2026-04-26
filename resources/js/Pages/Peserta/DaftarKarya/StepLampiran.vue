@@ -152,12 +152,14 @@ const buildPreviewUrl = (raw: string) => {
     }
 };
 
-const templateCopyUrl = computed(() => buildCopyUrl(props.templateProposalUrl ?? ""));
+const templateCopyUrl = computed(() =>
+    buildCopyUrl(props.templateProposalUrl ?? ""),
+);
 const templatePreviewUrl = computed(() =>
-    buildPreviewUrl(props.templateProposalUrl ?? "")
+    buildPreviewUrl(props.templateProposalUrl ?? ""),
 );
 const proposalPreviewUrl = computed(() =>
-    buildPreviewUrl(props.form.proposalLink ?? "")
+    buildPreviewUrl(props.form.proposalLink ?? ""),
 );
 
 const openTemplatePreview = ref(false);
@@ -200,7 +202,10 @@ const openProposal = () => {
                         Lampiran opsional. File pendukung bisa berupa gambar,
                         PDF, DOCX, atau PPTX. Proposal diisi lewat link Google
                         Docs/Drive (make a copy). Untuk file lain, unggah ke
-                        Google Drive lalu tempel di Link Tambahan.
+                        Google Drive lalu tempel di Link Tambahan. Pastikan
+                        akses file diatur ke “Anyone with the link” agar juri
+                        bisa melihatnya dan Pastikan membuka link dengan email
+                        students
                     </p>
                 </div>
                 <button
@@ -218,7 +223,9 @@ const openProposal = () => {
                 Proposal (Link)
             </label>
 
-            <div class="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+            <div
+                class="rounded-xl border border-slate-200 bg-white p-3 space-y-2"
+            >
                 <div class="flex flex-wrap items-center gap-2">
                     <Input
                         v-model="form.proposalLink"
@@ -258,17 +265,18 @@ const openProposal = () => {
                     >
                         Preview template
                     </Button>
-                    <span
-                        v-else
-                        class="text-xs text-slate-500"
-                    >
+                    <span v-else class="text-xs text-slate-500">
                         Template proposal akan disediakan admin.
                     </span>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
                     <p class="text-xs text-slate-500 truncate">
-                        {{ form.proposalLink ? "Link tersimpan" : "Belum ada link proposal" }}
+                        {{
+                            form.proposalLink
+                                ? "Link tersimpan"
+                                : "Belum ada link proposal"
+                        }}
                     </p>
                     <Button
                         v-if="form.proposalLink"
@@ -446,7 +454,8 @@ const openProposal = () => {
                     v-else
                     class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700"
                 >
-                    Preview tidak tersedia. Pastikan akses file diatur ke “Anyone with the link”.
+                    Preview tidak tersedia. Pastikan akses file diatur ke
+                    “Anyone with the link”.
                 </div>
             </div>
         </DialogContent>
@@ -473,10 +482,10 @@ const openProposal = () => {
                     v-else
                     class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700"
                 >
-                    Preview tidak tersedia. Pastikan akses link diatur ke “Anyone with the link”.
+                    Preview tidak tersedia. Pastikan akses link diatur ke
+                    “Anyone with the link”.
                 </div>
             </div>
         </DialogContent>
     </Dialog>
 </template>
-

@@ -45,7 +45,9 @@ const currentRole = computed(
 );
 const isSuperadmin = computed(() => page.props.auth?.is_superadmin === true);
 const isImpersonating = computed(() => page.props.auth?.impersonating === true);
-const originalSuperadmin = computed(() => page.props.auth?.superadmin_original ?? null);
+const originalSuperadmin = computed(
+    () => page.props.auth?.superadmin_original ?? null,
+);
 const avatarError = ref(false);
 const displayName = computed(() => {
     const name = currentUser.value?.name?.trim();
@@ -114,7 +116,11 @@ const openAccountInfo = () => {
         return;
     }
 
-    if (!currentRole.value || !["admin", "juri", "peserta"].includes(currentRole.value)) return;
+    if (
+        !currentRole.value ||
+        !["admin", "juri", "peserta"].includes(currentRole.value)
+    )
+        return;
     router.get(`/${currentRole.value}/akun`);
 };
 
@@ -257,7 +263,7 @@ const openChooseRole = () => {
                         class="gap-2 px-4 py-2 text-sm text-red-600 focus:text-red-600"
                     >
                         <LogOut class="w-4 h-4" />
-                        Logout
+                        Keluar
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

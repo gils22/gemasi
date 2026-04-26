@@ -277,10 +277,7 @@ const submit = () => {
                     <Badge variant="secondary" class="max-w-full truncate">
                         {{ gemasiAktifLabel }}
                     </Badge>
-                    <Badge
-                        v-if="isReadOnly"
-                        class="bg-sky-50 text-sky-700"
-                    >
+                    <Badge v-if="isReadOnly" class="bg-sky-50 text-sky-700">
                         Mode baca
                     </Badge>
                 </div>
@@ -293,15 +290,13 @@ const submit = () => {
                             :completed="step.id < langkahAktif"
                             @click="
                                 (isReadOnly || step.id <= langkahAktif) &&
-                                    (langkahAktif = step.id)
+                                (langkahAktif = step.id)
                             "
                         >
                             <template #title>{{ step.label }}</template>
                             <template #description>{{ step.desc }}</template>
                         </StepperItem>
-                        <StepperSeparator
-                            v-if="index < steps.length - 1"
-                        />
+                        <StepperSeparator v-if="index < steps.length - 1" />
                     </template>
                 </Stepper>
             </CardContent>
@@ -364,7 +359,9 @@ const submit = () => {
 
                     <Button
                         v-if="langkahAktif < totalLangkah"
-                        :disabled="(!isReadOnly && !isLangkahValid) || isSavingStep"
+                        :disabled="
+                            (!isReadOnly && !isLangkahValid) || isSavingStep
+                        "
                         class="w-full sm:w-auto"
                         @click="goNext"
                     >
@@ -393,4 +390,3 @@ const submit = () => {
         </Card>
     </div>
 </template>
-

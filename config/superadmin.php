@@ -14,5 +14,6 @@ return [
     'emails' => [
         'gilangaryatama12@gmail.com',
         'nurmasani@amikom.ac.id',
+        'fajri@amikom.ac.id',
     ],
 ];

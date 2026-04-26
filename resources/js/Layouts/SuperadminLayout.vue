@@ -14,13 +14,17 @@ const logout = () => {
 
 <template>
     <div class="min-h-screen bg-slate-50">
-        <header class="h-16 border-b border-slate-200 bg-white/90 backdrop-blur">
-            <div class="mx-auto flex h-full max-w-5xl items-center justify-between px-4">
+        <header
+            class="h-16 border-b border-slate-200 bg-white/90 backdrop-blur"
+        >
+            <div
+                class="mx-auto flex h-full max-w-5xl items-center justify-between px-4"
+            >
                 <div />
 
                 <Button variant="outline" size="sm" @click="logout">
                     <LogOut class="h-4 w-4" />
-                    Logout
+                    Keluar
                 </Button>
             </div>
         </header>
