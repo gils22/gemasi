@@ -19,6 +19,25 @@ class RoleMiddleware
             if ($user->hasRole($role)) {
                 return $next($request);
             }
+
+            // Fallback: role berbasis edisi (pivot `edisi_lomba_user_role`).
+            // Ini penting untuk production jika data role tidak selalu tersinkron ke pivot global `role_user`,
+            // terutama saat superadmin melakukan impersonate berdasarkan edisi yang dipilih.
+            if (method_exists($user, 'editionRoles')) {
+                $edisiId = (int) session('edisi_aktif_id', 0);
+
+                $hasEditionRole = $user->editionRoles()
+                    ->when(
+                        $edisiId > 0,
+                        fn ($q) => $q->where('edisi_lomba_user_role.edisi_lomba_id', $edisiId),
+                    )
+                    ->where('roles.name', $role)
+                    ->exists();
+
+                if ($hasEditionRole) {
+                    return $next($request);
+                }
+            }
         }
 
         abort(403, 'Akses ditolak.');
