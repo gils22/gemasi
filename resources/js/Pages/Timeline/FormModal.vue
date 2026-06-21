@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Spinner } from "@/components/ui/spinner";
 import { Calendar } from "@/components/ui/calendar";
 import {
     Popover,
@@ -37,7 +38,6 @@ type TimelineItem = {
     selesai_pada: string | null;
     is_tba: boolean;
     deskripsi: string | null;
-    urutan: number;
     aktif: boolean;
 };
 
@@ -72,7 +72,6 @@ const form = useForm({
     selesai_pada: "",
     is_tba: true,
     deskripsi: "",
-    urutan: 0,
     aktif: true,
 });
 
@@ -106,7 +105,6 @@ watch(
             form.selesai_pada = toInputDateTime(val.selesai_pada);
             form.is_tba = !!val.is_tba;
             form.deskripsi = val.deskripsi ?? "";
-            form.urutan = val.urutan ?? 0;
             form.aktif = !!val.aktif;
             if (form.mulai_pada) {
                 mulaiDate.value = parseDate(form.mulai_pada.slice(0, 10));
@@ -325,11 +323,6 @@ const submit = () => {
                     />
                 </div>
 
-                <div class="space-y-2">
-                    <label class="text-sm font-medium">Urutan</label>
-                    <Input v-model.number="form.urutan" type="number" min="0" />
-                </div>
-
                 <div class="flex items-center justify-between rounded-lg border px-3 py-2">
                     <div>
                         <p class="text-sm font-medium">Tanggal TBA</p>
@@ -446,7 +439,8 @@ const submit = () => {
                             (!!item && !canEdit)
                         "
                     >
-                        {{ form.processing ? "Menyimpan..." : "Simpan" }}
+                        <Spinner v-if="form.processing" class="h-4 w-4" />
+                        <span v-else>Simpan</span>
                     </Button>
                 </DialogFooter>
             </form>

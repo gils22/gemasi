@@ -6,6 +6,8 @@ use App\Models\Edition;
 use App\Models\KategoriLomba;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Inertia\Inertia;
 
 class KategoriLombaController extends Controller
@@ -60,7 +62,19 @@ class KategoriLombaController extends Controller
         $kategori = KategoriLomba::query()
             ->where('edisi_lomba_id', $edisi->id)
             ->orderBy('nama')
-            ->get();
+            ->get()
+            ->map(fn (KategoriLomba $item) => [
+                'id' => $item->id,
+                'nama' => $item->nama,
+                'slug' => $item->slug,
+                'deskripsi' => $item->deskripsi,
+                'aktif' => (bool) $item->aktif,
+                'created_at' => $item->created_at?->toISOString(),
+                'icon_url' => $item->icon_path ? route('kategori.icon.preview', ['kategori' => $item->id]) : null,
+                'icon_nama_asli' => $item->icon_nama_asli,
+                'icon_ukuran' => $item->icon_ukuran,
+            ])
+            ->values();
 
         return Inertia::render('Kategori/Index', [
             'kategori' => $kategori,
@@ -90,6 +104,7 @@ class KategoriLombaController extends Controller
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'deskripsi' => 'nullable|string|max:2000',
+            'icon' => 'nullable|file|mimes:png,jpg,jpeg,webp,svg|max:2048',
             'aktif' => 'nullable|boolean',
         ]);
 
@@ -107,15 +122,47 @@ class KategoriLombaController extends Controller
             $counter++;
         }
 
+        $icon = $request->file('icon');
+        $iconPath = null;
+        $iconNamaAsli = null;
+        $iconMimeType = null;
+        $iconUkuran = null;
+        if ($icon) {
+            $iconPath = $icon->store('kategori-icons', 'public');
+            $iconNamaAsli = $icon->getClientOriginalName();
+            $iconMimeType = $icon->getClientMimeType();
+            $iconUkuran = (int) $icon->getSize();
+        }
+
         KategoriLomba::query()->create([
             'edisi_lomba_id' => $edisi->id,
             'nama' => $nama,
             'slug' => $slug,
             'deskripsi' => $validated['deskripsi'] ?? null,
+            'icon_path' => $iconPath,
+            'icon_nama_asli' => $iconNamaAsli,
+            'icon_mime_type' => $iconMimeType,
+            'icon_ukuran' => $iconUkuran,
             'aktif' => (bool) ($validated['aktif'] ?? true),
         ]);
 
         return redirect()->back()->setStatusCode(303);
+    }
+
+    public function previewIcon(Request $request, KategoriLomba $kategori): StreamedResponse
+    {
+        $edisi = $this->resolveEdisiKonteks($request);
+        $this->ensureKategoriDalamEdisi($kategori, $edisi);
+        abort_unless($kategori->icon_path, 404);
+        abort_unless(Storage::disk('public')->exists($kategori->icon_path), 404);
+
+        return Storage::disk('public')->response(
+            $kategori->icon_path,
+            $kategori->icon_nama_asli ?? basename($kategori->icon_path),
+            [
+                'Content-Type' => $kategori->icon_mime_type ?: Storage::disk('public')->mimeType($kategori->icon_path) ?: 'application/octet-stream',
+            ]
+        );
     }
 
     public function update(Request $request, KategoriLomba $kategori)
@@ -128,6 +175,7 @@ class KategoriLombaController extends Controller
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'deskripsi' => 'nullable|string|max:2000',
+            'icon' => 'nullable|file|mimes:png,jpg,jpeg,webp,svg|max:2048',
             'aktif' => 'nullable|boolean',
         ]);
 
@@ -146,10 +194,29 @@ class KategoriLombaController extends Controller
             $counter++;
         }
 
+        $icon = $request->file('icon');
+        $iconPath = $kategori->icon_path;
+        $iconNamaAsli = $kategori->icon_nama_asli;
+        $iconMimeType = $kategori->icon_mime_type;
+        $iconUkuran = $kategori->icon_ukuran;
+        if ($icon) {
+            if ($kategori->icon_path) {
+                Storage::disk('public')->delete($kategori->icon_path);
+            }
+            $iconPath = $icon->store('kategori-icons', 'public');
+            $iconNamaAsli = $icon->getClientOriginalName();
+            $iconMimeType = $icon->getClientMimeType();
+            $iconUkuran = (int) $icon->getSize();
+        }
+
         $kategori->update([
             'nama' => $nama,
             'slug' => $slug,
             'deskripsi' => $validated['deskripsi'] ?? null,
+            'icon_path' => $iconPath,
+            'icon_nama_asli' => $iconNamaAsli,
+            'icon_mime_type' => $iconMimeType,
+            'icon_ukuran' => $iconUkuran,
             'aktif' => (bool) ($validated['aktif'] ?? true),
         ]);
 
@@ -162,6 +229,9 @@ class KategoriLombaController extends Controller
 
         $edisi = $this->resolveEdisiKonteks($request);
         $this->ensureKategoriDalamEdisi($kategori, $edisi);
+        if ($kategori->icon_path) {
+            Storage::disk('public')->delete($kategori->icon_path);
+        }
 
         $kategori->delete();
 

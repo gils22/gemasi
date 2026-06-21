@@ -8,7 +8,6 @@ type LandingTimeline = {
     selesai_pada: string | null;
     is_tba: boolean;
     deskripsi?: string | null;
-    urutan?: number | null;
 };
 
 const props = defineProps<{

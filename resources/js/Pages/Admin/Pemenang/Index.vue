@@ -19,14 +19,8 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
-import { Eye } from "lucide-vue-next";
+import { Eye, Star } from "lucide-vue-next";
+import FavoritModal from "./FavoritModal.vue";
 import type { PageProps } from "@/types/inertia";
 
 type Pemenang = {
@@ -43,17 +37,43 @@ type Pemenang = {
     pameran_submitted_at: string | null;
 };
 
+type Favorit = {
+    items: Array<{
+        id: number;
+        peringkat?: number | null;
+        karya_peserta_id: number;
+        nama_karya: string | null;
+        nama_kategori: string | null;
+        anggota_tim: Array<{ nama?: string; nim?: string }>;
+        pameran_ringkasan: string | null;
+        pameran_link_video: string | null;
+        pameran_logo_name: string | null;
+        pameran_logo_url: string | null;
+        pameran_submitted_at: string | null;
+    }>;
+};
+
+type FavoritOption = {
+    id: number;
+    label: string;
+};
+
 const page = usePage<
     PageProps & {
         pemenang: Pemenang[];
+        favorit: Favorit | null;
+        favoritOptions: FavoritOption[];
         gemasiAktifLabel: string;
     }
 >();
 
 const kategoriFilter = ref("all");
 const data = computed(() => page.props.pemenang ?? []);
+const favorit = computed(() => page.props.favorit ?? null);
+const favoritOptions = computed(() => page.props.favoritOptions ?? []);
 const openView = ref(false);
 const selectedItem = ref<Pemenang | null>(null);
+const openFavorit = ref(false);
 
 const kategoriOptions = computed(() => {
     const set = new Set<string>();
@@ -110,11 +130,17 @@ const tetapkanOtomatis = () => {
         action: {
             label: "Ya, Tetapkan",
             onClick: () => {
-                router.post("/admin/pemenang/tetapkan", {}, {
-                    preserveScroll: true,
-                    onSuccess: () => toast.success("Pemenang berhasil ditetapkan."),
-                    onError: () => toast.error("Gagal menetapkan pemenang."),
-                });
+                router.post(
+                    "/admin/pemenang/tetapkan",
+                    {},
+                    {
+                        preserveScroll: true,
+                        onSuccess: () =>
+                            toast.success("Pemenang berhasil ditetapkan."),
+                        onError: () =>
+                            toast.error("Gagal menetapkan pemenang."),
+                    },
+                );
             },
         },
         cancel: { label: "Batal", onClick: () => {} },
@@ -122,13 +148,47 @@ const tetapkanOtomatis = () => {
 };
 
 defineOptions({
-    layout: (h, page) =>
-        h(DashboardLayout, { title: "Pemenang" }, () => page),
+    layout: (h, page) => h(DashboardLayout, { title: "Pemenang" }, () => page),
 });
 </script>
 
 <template>
     <div class="space-y-6">
+        <FavoritModal
+            v-model:open="openFavorit"
+            :favorit="favorit"
+            :favorit-options="favoritOptions"
+            @submit="
+                (payload) => {
+                    toast.warning('Tetapkan karya favorit?', {
+                        description:
+                            'Sistem akan menyimpan pilihan favorit untuk edisi aktif.',
+                        action: {
+                            label: 'Ya, Tetapkan',
+                            onClick: () => {
+                                router.post(
+                                    '/admin/pemenang/favorit',
+                                    payload,
+                                    {
+                                        preserveScroll: true,
+                                        onSuccess: () =>
+                                            toast.success(
+                                                'Karya favorit berhasil ditetapkan.',
+                                            ),
+                                        onError: () =>
+                                            toast.error(
+                                                'Gagal menetapkan favorit.',
+                                            ),
+                                    },
+                                );
+                            },
+                        },
+                        cancel: { label: 'Batal', onClick: () => {} },
+                    });
+                }
+            "
+        />
+
         <DataTable
             :columns="columns"
             :data="filtered"
@@ -154,11 +214,19 @@ defineOptions({
             </template>
 
             <template #toolbar-right>
-                <Button @click="tetapkanOtomatis">Tetapkan Otomatis</Button>
+                <div class="flex items-center gap-3">
+                    <Button @click="tetapkanOtomatis">Tetapkan Otomatis</Button>
+                    <Button variant="outline" @click="openFavorit = true">
+                        <Star class="mr-2 h-4 w-4" />
+                        Atur Favorit
+                    </Button>
+                </div>
             </template>
 
             <template #peringkat="{ row }">
-                <Badge class="bg-amber-100 text-amber-700">#{{ row.peringkat }}</Badge>
+                <Badge class="bg-amber-100 text-amber-700"
+                    >#{{ row.peringkat }}</Badge
+                >
             </template>
 
             <template #nilai_final="{ row }">
@@ -174,7 +242,9 @@ defineOptions({
                         :key="`${row.id}-anggota-${idx}`"
                         class="flex items-center gap-2 text-sm text-slate-800"
                     >
-                        <span class="font-medium">{{ anggota.nama ?? "-" }}</span>
+                        <span class="font-medium">{{
+                            anggota.nama ?? "-"
+                        }}</span>
                         <span class="text-xs text-slate-500">
                             {{ anggota.nim ?? "-" }}
                         </span>
@@ -194,13 +264,15 @@ defineOptions({
                         <TooltipTrigger as-child>
                             <Button
                                 size="icon"
-                                variant="outline"
+                                variant="ghost"
                                 @click="openDetail(row)"
                             >
                                 <Eye class="h-4 w-4" />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent>Detail Karya</TooltipContent>
+                        <TooltipContent>
+                            <p>Detail Karya</p>
+                        </TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             </template>
@@ -213,7 +285,9 @@ defineOptions({
                 </DialogHeader>
 
                 <div v-if="selectedItem" class="space-y-5">
-                    <div class="flex items-start gap-4 border-b border-slate-100 pb-4">
+                    <div
+                        class="flex items-start gap-4 border-b border-slate-100 pb-4"
+                    >
                         <div
                             class="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-3"
                         >
@@ -225,70 +299,106 @@ defineOptions({
                             />
                             <span
                                 v-else
-                                class="text-xs text-center text-slate-400"
+                                class="text-center text-xs text-slate-400"
                             >
                                 Belum ada logo
                             </span>
                         </div>
 
-                        <div class="min-w-0 flex-1 space-y-1">
-                            <p class="text-lg font-semibold text-slate-900">
-                                {{ selectedItem.nama_karya ?? "-" }}
-                            </p>
-                            <p class="text-sm text-slate-500">
-                                {{ selectedItem.nama_kategori ?? "-" }}
-                            </p>
-                            <p class="pt-1 text-xs text-slate-500 break-words">
-                                {{ selectedItem.pameran_logo_name ?? "-" }}
-                            </p>
-                            <p class="text-xs text-slate-400">
-                                {{
-                                    selectedItem.pameran_submitted_at ?? "-"
-                                }}
-                            </p>
+                        <div class="min-w-0 flex-1 space-y-2">
+                            <div class="space-y-1">
+                                <p class="text-lg font-semibold text-slate-900">
+                                    {{ selectedItem.nama_karya ?? "-" }}
+                                </p>
+                                <p class="text-sm text-slate-500">
+                                    {{ selectedItem.nama_kategori ?? "-" }}
+                                </p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <Badge class="bg-amber-100 text-amber-700">
+                                    #{{ selectedItem.peringkat }}
+                                </Badge>
+                                <Badge class="bg-slate-100 text-slate-700">
+                                    Nilai {{ selectedItem.nilai_final ?? "-" }}
+                                </Badge>
+                                <Badge class="bg-sky-50 text-sky-700">
+                                    {{
+                                        selectedItem.pameran_submitted_at ?? "-"
+                                    }}
+                                </Badge>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="grid items-start gap-4 lg:grid-cols-[1fr_1fr]">
+                    <div class="grid gap-4 lg:grid-cols-2">
                         <div
                             class="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 space-y-3"
                         >
                             <p
                                 class="text-xs font-semibold uppercase tracking-wide text-slate-500"
                             >
-                                Video
+                                Data Karya
                             </p>
-                            <div
-                                v-if="selectedItem.pameran_link_video"
-                                class="max-w-[320px] overflow-hidden rounded-xl border border-slate-200 bg-white"
-                            >
-                                <iframe
-                                    v-if="getEmbedUrl(selectedItem.pameran_link_video)"
-                                    :src="getEmbedUrl(selectedItem.pameran_link_video)"
-                                    class="aspect-video w-full"
-                                    title="Video karya"
-                                    frameborder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                    allowfullscreen
-                                />
+                            <div class="space-y-3 text-sm">
                                 <div
-                                    v-else
-                                    class="flex h-24 items-center justify-center text-sm text-slate-400"
+                                    class="rounded-xl border border-white bg-white p-3"
                                 >
-                                    Preview video tidak tersedia
+                                    <p class="text-xs text-slate-500">
+                                        Nama Karya
+                                    </p>
+                                    <p class="font-medium text-slate-900">
+                                        {{ selectedItem.nama_karya ?? "-" }}
+                                    </p>
+                                </div>
+                                <div
+                                    class="rounded-xl border border-white bg-white p-3"
+                                >
+                                    <p class="text-xs text-slate-500">
+                                        Kategori
+                                    </p>
+                                    <p class="font-medium text-slate-900">
+                                        {{ selectedItem.nama_kategori ?? "-" }}
+                                    </p>
+                                </div>
+                                <div
+                                    class="rounded-xl border border-white bg-white p-3"
+                                >
+                                    <p class="text-xs text-slate-500">
+                                        Anggota Tim
+                                    </p>
+                                    <div class="mt-2 space-y-2">
+                                        <div
+                                            v-for="(
+                                                anggota, idx
+                                            ) in selectedItem.anggota_tim"
+                                            :key="`${selectedItem.id}-anggota-${idx}`"
+                                            class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2"
+                                        >
+                                            <div>
+                                                <p
+                                                    class="font-medium text-slate-900"
+                                                >
+                                                    {{ anggota.nama ?? "-" }}
+                                                </p>
+                                                <p
+                                                    class="text-xs text-slate-500"
+                                                >
+                                                    {{ anggota.nim ?? "-" }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <p
+                                            v-if="
+                                                !selectedItem.anggota_tim
+                                                    ?.length
+                                            "
+                                            class="text-sm text-slate-500"
+                                        >
+                                            Belum ada anggota tim
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                            <a
-                                v-if="selectedItem.pameran_link_video"
-                                :href="selectedItem.pameran_link_video"
-                                target="_blank"
-                                class="inline-flex text-sm font-medium text-blue-600 hover:text-blue-700"
-                            >
-                                Buka link video
-                            </a>
-                            <p v-else class="text-sm text-slate-400">
-                                Belum ada video
-                            </p>
                         </div>
 
                         <div
@@ -297,13 +407,59 @@ defineOptions({
                             <p
                                 class="text-xs font-semibold uppercase tracking-wide text-slate-500"
                             >
-                                Ringkasan
+                                Lampiran Pameran
                             </p>
-                            <p
-                                class="text-sm leading-6 text-slate-700 whitespace-pre-line"
-                            >
-                                {{ selectedItem.pameran_ringkasan ?? "-" }}
-                            </p>
+                            <div class="space-y-3">
+                                <div
+                                    class="rounded-xl border border-white bg-white p-3"
+                                >
+                                    <p class="text-xs text-slate-500">Logo</p>
+                                    <p
+                                        class="truncate font-medium text-slate-900"
+                                    >
+                                        {{
+                                            selectedItem.pameran_logo_name ??
+                                            "-"
+                                        }}
+                                    </p>
+                                </div>
+                                <div
+                                    class="rounded-xl border border-white bg-white p-3"
+                                >
+                                    <p class="text-xs text-slate-500">
+                                        Link Video
+                                    </p>
+                                    <a
+                                        v-if="selectedItem.pameran_link_video"
+                                        :href="selectedItem.pameran_link_video"
+                                        target="_blank"
+                                        class="break-all font-medium text-blue-600 hover:text-blue-700"
+                                    >
+                                        {{ selectedItem.pameran_link_video }}
+                                    </a>
+                                    <p
+                                        v-else
+                                        class="font-medium text-slate-400"
+                                    >
+                                        Belum ada video
+                                    </p>
+                                </div>
+                                <div
+                                    class="rounded-xl border border-white bg-white p-3"
+                                >
+                                    <p class="text-xs text-slate-500">
+                                        Ringkasan
+                                    </p>
+                                    <p
+                                        class="mt-1 whitespace-pre-line text-sm leading-6 text-slate-700"
+                                    >
+                                        {{
+                                            selectedItem.pameran_ringkasan ??
+                                            "-"
+                                        }}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

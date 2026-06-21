@@ -1,9 +1,9 @@
-﻿<script setup lang="ts">
-import { computed } from "vue";
-import { ExternalLink, Info, Plus, X } from "lucide-vue-next";
-import { toast } from "vue-sonner";
+<script setup lang="ts">
+import { computed, reactive, ref } from "vue";
+import { ExternalLink, Info, X } from "lucide-vue-next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
     Dialog,
     DialogContent,
@@ -11,7 +11,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { ref } from "vue";
 import type { FormDaftarKarya } from "./types";
 
 const props = defineProps<{
@@ -19,56 +18,8 @@ const props = defineProps<{
     templateProposalUrl?: string | null;
     templateProposalName?: string | null;
     readOnly?: boolean;
+    errors?: Record<string, string | undefined>;
 }>();
-
-const maxFileSize = 5 * 1024 * 1024;
-
-const tambahLampiran = () => {
-    if (props.readOnly) return;
-    props.form.lampiran.push({
-        file: null,
-        namaFile: "",
-        deskripsi: "",
-    });
-};
-
-const hapusLampiran = (index: number) => {
-    if (props.readOnly) return;
-    if (props.form.lampiran.length <= 1) return;
-    props.form.lampiran.splice(index, 1);
-};
-
-const tambahLinkTambahan = () => {
-    if (props.readOnly) return;
-    props.form.linkTambahan.push({ label: "", url: "" });
-};
-
-const hapusLinkTambahan = (index: number) => {
-    if (props.readOnly) return;
-    if (props.form.linkTambahan.length <= 1) return;
-    props.form.linkTambahan.splice(index, 1);
-};
-
-const onFileChange = (event: Event, index: number) => {
-    if (props.readOnly) return;
-    const target = event.target as HTMLInputElement;
-    const file = target.files?.[0] ?? null;
-
-    if (!file) {
-        props.form.lampiran[index].file = null;
-        props.form.lampiran[index].namaFile = "";
-        return;
-    }
-
-    if (file.size > maxFileSize) {
-        toast.error("Ukuran file maksimal 5MB per file.");
-        target.value = "";
-        return;
-    }
-
-    props.form.lampiran[index].file = file;
-    props.form.lampiran[index].namaFile = file.name;
-};
 
 const buildCopyUrl = (raw: string) => {
     const trimmed = raw?.trim();
@@ -162,6 +113,39 @@ const proposalPreviewUrl = computed(() =>
     buildPreviewUrl(props.form.proposalLink ?? ""),
 );
 
+const proposalTerisi = computed(
+    () => String(props.form.proposalLink ?? "").trim().length > 0,
+);
+
+const touched = reactive({
+    proposalLink: false,
+});
+
+const proposalError = computed(() => {
+    if (!touched.proposalLink) return "";
+    if (props.errors?.proposalLink) return props.errors.proposalLink;
+    if (!proposalTerisi.value) return "Proposal wajib diisi.";
+    return "";
+});
+
+const linkTambahanText = computed({
+    get: () =>
+        props.form.linkTambahan
+            .map((item) => item.url.trim())
+            .filter((value) => value.length > 0)
+            .join("\n"),
+    set: (value: string) => {
+        const urls = value
+            .split("\n")
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0);
+
+        props.form.linkTambahan = urls.length
+            ? urls.map((url) => ({ label: "", url }))
+            : [{ label: "", url: "" }];
+    },
+});
+
 const openTemplatePreview = ref(false);
 const openProposalPreview = ref(false);
 const showInfo = ref(true);
@@ -170,12 +154,10 @@ const proposalPreviewBlocked = ref(false);
 
 const markTemplatePreview = () => {
     templatePreviewBlocked.value = true;
-    templatePreviewStatus.value = "blocked";
 };
 
 const markProposalPreview = () => {
     proposalPreviewBlocked.value = true;
-    proposalPreviewStatus.value = "blocked";
 };
 
 const openTemplate = () => {
@@ -199,13 +181,12 @@ const openProposal = () => {
                 <div class="flex items-start gap-2">
                     <Info class="mt-0.5 h-4 w-4 shrink-0" />
                     <p>
-                        Lampiran opsional. File pendukung bisa berupa gambar,
-                        PDF, DOCX, atau PPTX. Proposal diisi lewat link Google
-                        Docs/Drive (make a copy). Untuk file lain, unggah ke
-                        Google Drive lalu tempel di Link Tambahan. Pastikan
-                        akses file diatur ke “Anyone with the link” agar juri
-                        bisa melihatnya dan Pastikan membuka link dengan email
-                        students
+                        Proposal wajib diunggah melalui link Google Docs/Drive
+                        menggunakan template yang tersedia. Lampiran pendukung
+                        seperti gambar, PDF, PPT, video, website, Figma, atau
+                        dokumen lainnya dapat dicantumkan pada Link Lampiran.
+                        Pastikan setiap link dapat diakses oleh juri dengan
+                        pengaturan akses "Anyone with the link".
                     </p>
                 </div>
                 <button
@@ -221,24 +202,31 @@ const openProposal = () => {
         <div class="space-y-3">
             <label class="text-sm font-medium text-slate-700">
                 Proposal (Link)
+                <span
+                    :class="proposalTerisi ? 'text-slate-700' : 'text-rose-500'"
+                    >*</span
+                >
             </label>
 
             <div
-                class="rounded-xl border border-slate-200 bg-white p-3 space-y-2"
+                class="space-y-3 rounded-xl border border-slate-200 bg-white p-3"
             >
                 <div class="flex flex-wrap items-center gap-2">
                     <Input
                         v-model="form.proposalLink"
-                        class="bg-white"
+                        :class="[
+                            'bg-white',
+                            proposalError
+                                ? 'border-rose-500 ring-rose-500'
+                                : '',
+                        ]"
                         :disabled="readOnly"
                         placeholder="Tempel link proposal (Google Docs/Drive)"
+                        type="url"
+                        inputmode="url"
+                        @blur="touched.proposalLink = true"
+                        @input="touched.proposalLink = true"
                     />
-                    <p class="text-xs text-slate-600">
-                        Nama file peserta :
-                        <span class="font-medium">
-                            {{ templateProposalName || "Template proposal" }}
-                        </span>
-                    </p>
                     <Button
                         v-if="templateCopyUrl"
                         as-child
@@ -252,7 +240,7 @@ const openProposal = () => {
                             rel="noopener noreferrer"
                             class="inline-flex items-center gap-1"
                         >
-                            Download
+                            Download Template
                             <ExternalLink class="h-3 w-3" />
                         </a>
                     </Button>
@@ -263,173 +251,32 @@ const openProposal = () => {
                         size="sm"
                         @click="openTemplate"
                     >
-                        Preview template
+                        Preview Template
                     </Button>
-                    <span v-else class="text-xs text-slate-500">
-                        Template proposal akan disediakan admin.
-                    </span>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2">
-                    <p class="text-xs text-slate-500 truncate">
-                        {{
-                            form.proposalLink
-                                ? "Link tersimpan"
-                                : "Belum ada link proposal"
-                        }}
-                    </p>
-                    <Button
-                        v-if="form.proposalLink"
-                        as-child
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                    >
-                        <a
-                            :href="form.proposalLink"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="inline-flex items-center gap-1"
-                        >
-                            Buka link
-                            <ExternalLink class="h-3 w-3" />
-                        </a>
-                    </Button>
-                    <Button
-                        v-if="proposalPreviewUrl"
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        @click="openProposal"
-                    >
-                        Preview proposal
-                    </Button>
-                </div>
+                <p v-if="proposalError" class="text-xs text-rose-600">
+                    {{ proposalError }}
+                </p>
             </div>
-        </div>
-
-        <div class="space-y-3">
-            <label class="text-sm font-medium text-slate-700"
-                >Tambah Lampiran (opsional)</label
-            >
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <div
-                    v-for="(item, index) in form.lampiran"
-                    :key="`lampiran-${index}`"
-                    class="rounded-xl border border-slate-200 bg-white p-3 space-y-2"
-                >
-                    <div class="flex items-start gap-2">
-                        <input
-                            type="file"
-                            accept=".pdf,.doc,.docx,.ppt,.pptx,image/*"
-                            class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
-                            :disabled="readOnly"
-                            @change="onFileChange($event, index)"
-                        />
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            class="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                            :disabled="readOnly || form.lampiran.length <= 1"
-                            @click="hapusLampiran(index)"
-                        >
-                            <X class="h-4 w-4" />
-                        </Button>
-                    </div>
-
-                    <p class="text-xs text-slate-500 truncate">
-                        {{ item.namaFile || "Belum ada file dipilih" }}
-                    </p>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <a
-                            v-if="item.url"
-                            :href="item.url"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700 hover:bg-slate-200"
-                        >
-                            Lihat lampiran
-                            <ExternalLink class="h-3 w-3" />
-                        </a>
-                        <span
-                            v-if="item.file"
-                            class="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-700"
-                        >
-                            File baru dipilih
-                        </span>
-                    </div>
-
-                    <textarea
-                        v-model="item.deskripsi"
-                        rows="3"
-                        class="w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
-                        :disabled="readOnly"
-                        placeholder="Deskripsi lampiran wajib diisi"
-                    />
-                </div>
-            </div>
-
-            <Button
-                type="button"
-                variant="outline"
-                class="w-full sm:w-fit"
-                :disabled="readOnly"
-                @click="tambahLampiran"
-            >
-                <Plus class="w-4 h-4" />
-                Tambah Lampiran
-            </Button>
-
-            <p class="text-xs text-slate-500">
-                Ukuran file maksimal 5MB per file.
-            </p>
         </div>
 
         <div class="space-y-3">
             <label class="text-sm font-medium text-slate-700">
-                Link Tambahan (opsional)
+                Link Lampiran (opsional)
             </label>
 
-            <div class="space-y-2">
-                <div
-                    v-for="(item, index) in form.linkTambahan"
-                    :key="`link-${index}`"
-                    class="grid grid-cols-1 gap-2 md:grid-cols-[1fr_2fr_auto]"
-                >
-                    <Input
-                        v-model="item.label"
-                        :disabled="readOnly"
-                        placeholder="Contoh: PPT / Website / Video"
-                    />
-                    <Input
-                        v-model="item.url"
-                        :disabled="readOnly"
-                        placeholder="https://..."
-                    />
-                    <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        :disabled="readOnly || form.linkTambahan.length <= 1"
-                        @click="hapusLinkTambahan(index)"
-                    >
-                        <X class="h-4 w-4" />
-                    </Button>
-                </div>
-            </div>
-
-            <Button
-                type="button"
-                variant="outline"
-                class="w-full sm:w-fit"
+            <Textarea
+                v-model="linkTambahanText"
                 :disabled="readOnly"
-                @click="tambahLinkTambahan"
-            >
-                <Plus class="w-4 h-4" />
-                Tambah Link
-            </Button>
+                rows="5"
+                class="min-h-[140px]"
+                placeholder="Masukkan link lampiran, Pisahkan setiap link dengan Enter.
+
+https://drive.google.com/...
+https://youtube.com/...
+https://www.figma.com/..."
+            />
         </div>
     </div>
 
@@ -445,7 +292,7 @@ const openProposal = () => {
                 <iframe
                     v-if="templatePreviewUrl && !templatePreviewBlocked"
                     :src="templatePreviewUrl"
-                    class="w-full h-[70vh] rounded-lg border"
+                    class="h-[70vh] w-full rounded-lg border"
                     loading="lazy"
                     referrerpolicy="no-referrer"
                     @error="markTemplatePreview"
@@ -473,7 +320,7 @@ const openProposal = () => {
                 <iframe
                     v-if="proposalPreviewUrl && !proposalPreviewBlocked"
                     :src="proposalPreviewUrl"
-                    class="w-full h-[70vh] rounded-lg border"
+                    class="h-[70vh] w-full rounded-lg border"
                     loading="lazy"
                     referrerpolicy="no-referrer"
                     @error="markProposalPreview"

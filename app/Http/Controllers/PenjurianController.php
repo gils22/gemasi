@@ -8,6 +8,7 @@ use App\Models\KaryaPeserta;
 use App\Models\LampiranKaryaPeserta;
 use App\Models\PenilaianTahapDua;
 use App\Models\PenugasanJuriKategori;
+use App\Models\TimelineLomba;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -94,11 +95,16 @@ class PenjurianController extends Controller
 
             $nama = trim((string) ($item['nama'] ?? ''));
             $poin = (float) ($item['poin'] ?? 0);
+            $deskripsi = trim((string) ($item['deskripsi'] ?? ''));
             if ($nama === '') {
                 return null;
             }
 
-            return ['nama' => $nama, 'poin' => $poin];
+            return [
+                'nama' => $nama,
+                'poin' => $poin,
+                'deskripsi' => $deskripsi,
+            ];
         }, $decoded['kriteria'])));
     }
 
@@ -110,6 +116,60 @@ class PenjurianController extends Controller
         $prefix = (string) $request->segment(1);
         $juriId = (int) $request->user()->id;
         $isAdmin = $this->isPrivileged($request);
+
+        $tahap1Assignments = PenugasanJuriKategori::query()
+            ->where('edisi_lomba_id', $edisi->id)
+            ->where('juri_id', $juriId)
+            ->whereIn('tahap', ['tahap_1', 'tahap_1_2'])
+            ->pluck('kategori_lomba_id')
+            ->unique()
+            ->values()
+            ->all();
+
+        $tahap2Assignments = PenugasanJuriKategori::query()
+            ->where('edisi_lomba_id', $edisi->id)
+            ->where('juri_id', $juriId)
+            ->whereIn('tahap', ['tahap_2', 'tahap_1_2'])
+            ->pluck('kategori_lomba_id')
+            ->unique()
+            ->values()
+            ->all();
+
+        $stage1Rows = KaryaPeserta::query()
+            ->with('peserta:id,name,email,avatar')
+            ->where('edisi_lomba_id', $edisi->id)
+            ->where('status', 'submitted')
+            ->when(
+                empty($tahap1Assignments),
+                fn ($q) => $q->whereRaw('1 = 0'),
+                fn ($q) => $q->whereIn('kategori_lomba_id', $tahap1Assignments)
+            )
+            ->orderBy('nama_kategori')
+            ->orderBy('nama_karya')
+            ->get()
+            ->map(function (KaryaPeserta $item) use ($prefix) {
+                return [
+                    'id' => $item->id,
+                    'nama_karya' => $item->nama_karya,
+                    'nama_kategori' => $item->nama_kategori,
+                    'peserta' => [
+                        'name' => $item->peserta?->name,
+                        'email' => $item->peserta?->email,
+                        'avatar' => $item->peserta?->avatar,
+                    ],
+                    'sudah_dinilai' => $item->nilai_tahap_1 !== null,
+                    'total_nilai' => $item->nilai_tahap_1 !== null ? (float) $item->nilai_tahap_1 : null,
+                    'url_nilai' => "/{$prefix}/submission/{$item->id}",
+                    'url_detail' => "/{$prefix}/submission/{$item->id}",
+                    'url_lolos' => "/{$prefix}/submission/{$item->id}/lolos-nominasi",
+                    'url_batalkan' => "/{$prefix}/submission/{$item->id}/batalkan-nominasi",
+                    'status_label' => $item->nilai_tahap_1 !== null ? 'Sudah dinilai' : 'Belum dinilai',
+                    'is_lolos_nominasi' => (bool) $item->lolos_nominasi,
+                    'status_nominasi' => $item->lolos_nominasi ? 'Lolos Nominasi' : 'Belum Nominasi',
+                    'nilai_tahap_1' => $item->nilai_tahap_1 !== null ? (float) $item->nilai_tahap_1 : null,
+                ];
+            })
+            ->values();
 
         $penilaianGroupedAll = PenilaianTahapDua::query()
             ->where('edisi_lomba_id', $edisi->id)
@@ -179,10 +239,42 @@ class PenjurianController extends Controller
             ->values()
             ->all();
 
+        $stageOptions = [];
+        if (!empty($tahap1Assignments)) {
+            $stageOptions[] = ['value' => 'tahap_1', 'label' => 'Tahap 1'];
+        }
+        if (!empty($tahap2Assignments)) {
+            $stageOptions[] = ['value' => 'tahap_2', 'label' => 'Tahap 2'];
+        }
+
+        $timelineAktif = TimelineLomba::query()
+            ->where('edisi_lomba_id', $edisi->id)
+            ->where('aktif', true)
+            ->whereIn('fase_kunci', ['penjurian_tahap_1', 'penjurian_tahap_2'])
+            ->orderByRaw("CASE fase_kunci WHEN 'penjurian_tahap_2' THEN 1 WHEN 'penjurian_tahap_1' THEN 2 ELSE 99 END")
+            ->first();
+
+        $timelineDefaultStage = match ($timelineAktif?->fase_kunci) {
+            'penjurian_tahap_2' => 'tahap_2',
+            'penjurian_tahap_1' => 'tahap_1',
+            default => null,
+        };
+
+        $stage = (string) $request->query('stage', '');
+        $availableStages = array_column($stageOptions, 'value');
+        if (!in_array($stage, $availableStages, true)) {
+            $stage = $timelineDefaultStage
+                ?? $availableStages[0]
+                ?? 'tahap_2';
+        }
+
         return Inertia::render('Penjurian/Nominasi', [
             'nominasi' => $karya,
+            'penilaianTahap1' => $stage1Rows,
             'kategoriOptions' => $kategoriOptions,
             'gemasiAktifLabel' => $edisi->nama . ' (' . $edisi->tahun . ')',
+            'stageOptions' => $stageOptions,
+            'selectedStage' => $stage,
         ]);
     }
 
@@ -198,6 +290,7 @@ class PenjurianController extends Controller
         );
 
         $karya->load('peserta:id,name,email,avatar');
+        $karya->load(['lampiran:id,karya_peserta_id,nama_asli,deskripsi,path_file']);
 
         $bobot = BobotPenilaianKategori::query()
             ->where('edisi_lomba_id', $edisi->id)
@@ -209,7 +302,7 @@ class PenjurianController extends Controller
             $prefix = (string) $request->segment(1);
             return redirect()
                 ->route("{$prefix}.penjurian.nominasi")
-                ->with('error', 'Kriteria bobot kategori belum diset pada guideline.')
+                ->with('error', 'Kriteria bobot kategori belum diatur pada guideline.')
                 ->setStatusCode(303);
         }
 
@@ -268,6 +361,7 @@ class PenjurianController extends Controller
                 'nama' => $item['nama'],
                 'bobot' => (float) $item['poin'],
                 'nilai' => $nilai,
+                'deskripsi' => (string) ($item['deskripsi'] ?? ''),
             ];
         })->values();
 
@@ -280,6 +374,18 @@ class PenjurianController extends Controller
                     'name' => $karya->peserta?->name,
                     'email' => $karya->peserta?->email,
                 ],
+                'wa_ketua' => $karya->wa_ketua,
+                'dosen_pembimbing' => $karya->dosen_pembimbing ?? null,
+                'proposal_link' => $karya->proposal_path
+                    ? Storage::disk('public')->url($karya->proposal_path)
+                    : null,
+                'anggota_tim' => $karya->anggota_tim ?? [],
+                'lampiran' => $karya->lampiran->map(fn ($lampiran) => [
+                    'id' => $lampiran->id,
+                    'nama_asli' => $lampiran->nama_asli,
+                    'deskripsi' => $lampiran->deskripsi,
+                    'url' => Storage::disk('public')->url($lampiran->path_file),
+                ])->values(),
             ],
             'kriteria' => $rows,
             'nilaiTersimpan' => $penilaian ? (float) $penilaian->total_nilai : null,

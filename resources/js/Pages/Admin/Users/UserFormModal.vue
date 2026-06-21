@@ -423,13 +423,9 @@ watch(
                         class="flex items-center gap-2"
                     >
                         <Spinner v-if="form.processing" class="w-4 h-4" />
-                        {{
-                            form.processing
-                                ? "Menyimpan..."
-                                : props.user?.id
-                                ? "Update"
-                                : "Simpan"
-                        }}
+                        <span v-else>
+                            {{ props.user?.id ? "Update" : "Simpan" }}
+                        </span>
                     </Button>
                 </DialogFooter>
             </form>

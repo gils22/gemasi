@@ -23,6 +23,7 @@ type Kategori = {
     deskripsi: string | null;
     aktif: boolean;
     created_at: string;
+    icon_url: string | null;
 };
 
 type EdisiAktif = {
@@ -56,6 +57,7 @@ const openForm = ref(false);
 const selectedKategori = ref<Kategori | null>(null);
 
 const columns = [
+    { key: "icon", label: "Icon" },
     { key: "nama", label: "Nama", sortable: true },
     { key: "deskripsi", label: "Deskripsi" },
     { key: "aktif", label: "Status" },
@@ -132,6 +134,20 @@ defineOptions({
                     <Plus class="w-4 h-4" />
                     Tambah Kategori
                 </Button>
+            </template>
+
+            <template #icon="{ row }: { row: Kategori }">
+                <div
+                    class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-50"
+                >
+                    <img
+                        v-if="row.icon_url"
+                        :src="row.icon_url"
+                        alt="Icon kategori"
+                        class="h-full w-full object-cover"
+                    />
+                    <span v-else class="text-xs text-slate-400">-</span>
+                </div>
             </template>
 
             <template #deskripsi="{ row }: { row: Kategori }">

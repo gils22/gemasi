@@ -7,6 +7,7 @@ use App\Models\Edition;
 use App\Models\KategoriLomba;
 use App\Models\PanduanLomba;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -45,7 +46,11 @@ class GuidelineController extends Controller
                 if ($nama === '') {
                     return null;
                 }
-                return ['nama' => $nama, 'poin' => $poin];
+                return [
+                    'nama' => $nama,
+                    'poin' => $poin,
+                    'deskripsi' => trim((string) ($item['deskripsi'] ?? '')),
+                ];
             }, $decoded['kriteria'])));
 
             // Legacy fallback lama: 1 baris "Penilaian Utama" bernilai 100.
@@ -171,7 +176,7 @@ class GuidelineController extends Controller
             ->where('edisi_lomba_id', $edisi->id)
             ->where('aktif', true)
             ->orderBy('nama')
-            ->get(['id', 'nama']);
+            ->get(['id', 'nama', 'icon_path']);
 
         $bobotMap = BobotPenilaianKategori::query()
             ->where('edisi_lomba_id', $edisi->id)
@@ -183,6 +188,7 @@ class GuidelineController extends Controller
             return [
                 'kategori_lomba_id' => $item->id,
                 'nama_kategori' => $item->nama,
+                'icon_url' => $item->icon_path ? Storage::disk('public')->url($item->icon_path) : null,
                 'kriteria' => $this->decodeKriteria($bobot?->catatan),
             ];
         })->values();
@@ -210,6 +216,7 @@ class GuidelineController extends Controller
             'bobot.*.kategori_lomba_id' => 'required|integer|exists:kategori_lomba,id',
             'bobot.*.kriteria' => 'required|array|min:1',
             'bobot.*.kriteria.*.nama' => 'required|string|max:255',
+            'bobot.*.kriteria.*.deskripsi' => 'nullable|string|max:1000',
             'bobot.*.kriteria.*.poin' => 'required|numeric|min:0|max:100',
         ]);
 
@@ -236,6 +243,7 @@ class GuidelineController extends Controller
             $kriteriaBersih = array_values(array_map(function (array $kriteria) {
                 return [
                     'nama' => trim((string) $kriteria['nama']),
+                    'deskripsi' => trim((string) ($kriteria['deskripsi'] ?? '')),
                     'poin' => (float) $kriteria['poin'],
                 ];
             }, $item['kriteria']));

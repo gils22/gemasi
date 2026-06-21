@@ -18,7 +18,6 @@ type TimelineItem = {
     selesai_pada: string | null;
     is_tba: boolean;
     deskripsi: string | null;
-    urutan: number;
     aktif: boolean;
     created_at: string;
 };
@@ -65,7 +64,6 @@ const columns = [
     { key: "judul", label: "Agenda", sortable: true },
     { key: "tipe", label: "Tipe", sortable: true },
     { key: "jadwal", label: "Jadwal" },
-    { key: "urutan", label: "Urutan", sortable: true },
 ];
 
 const tambahTimeline = () => {

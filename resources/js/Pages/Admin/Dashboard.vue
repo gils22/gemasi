@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from "vue";
-import { router, usePage } from "@inertiajs/vue3";
-import { toast } from "vue-sonner";
+import { computed } from "vue";
+import { usePage } from "@inertiajs/vue3";
 import DashboardLayout from "@/Layouts/DashboardLayout.vue";
-import { Button } from "@/components/ui/button";
+import heroImage from "@/assets/gizmo.png";
+
 import {
-    Archive,
-    RotateCcw,
     Sun,
     MoonStar,
     Cloud,
@@ -15,432 +13,463 @@ import {
     CloudMoon,
     CloudSnow,
     CloudLightning,
-    Users,
     FolderKanban,
     Send,
     Trophy,
-    FileText,
     ClipboardCheck,
+    FileText,
 } from "lucide-vue-next";
 
+defineOptions({
+    layout: (h, page) => h(DashboardLayout, { title: "Dashboard" }, () => page),
+});
+
 type Statistik = {
-    total_user: number;
-    total_peserta: number;
-    total_admin: number;
-    total_juri: number;
-    total_admin_juri: number;
     total_karya: number;
-    karya_draft: number;
     karya_submitted: number;
     karya_nominasi: number;
     karya_dinilai_tahap_2: number;
+};
+
+type TimelineItem = {
+    id: number;
+    judul: string;
+    mulai_pada?: string | null;
+    selesai_pada?: string | null;
+    is_tba?: boolean;
+    aktif: boolean;
+};
+
+type TimelineStatus = "ongoing" | "finished" | "upcoming";
+
+type KategoriItem = {
+    id: number;
+    nama: string;
+    total: number;
 };
 
 type RingkasanEdisi = {
     id: number;
     nama: string;
     tahun: number;
-    status: "draft" | "aktif" | "arsip";
+    status: string;
     aktif: boolean;
 };
 
 const page = usePage<{
     statistik: Statistik;
     ringkasanEdisi: RingkasanEdisi;
-    kategoriStats?: Array<{ id: number; nama: string; total: number }>;
+    timeline?: TimelineItem[];
+    kategoriStats?: KategoriItem[];
+    weather?: {
+        code?: number | null;
+        is_day?: number | null;
+    } | null;
     auth: {
         user?: {
             name?: string;
         } | null;
     };
-    weather?: {
-        code?: number | null;
-        is_day?: number | null;
-    } | null;
 }>();
 
 const statistik = computed(() => page.props.statistik);
 const ringkasanEdisi = computed(() => page.props.ringkasanEdisi);
-const namaUser = computed(() => page.props.auth?.user?.name ?? "Admin");
-const weather = computed(() => page.props.weather ?? null);
+
+const timelineItems = computed(() => page.props.timeline ?? []);
+const timelineMonthMap: Record<string, number> = {
+    Jan: 0,
+    Feb: 1,
+    Mar: 2,
+    Apr: 3,
+    May: 4,
+    Jun: 5,
+    Jul: 6,
+    Aug: 7,
+    Sep: 8,
+    Oct: 9,
+    Nov: 10,
+    Dec: 11,
+};
+
+const parseTimelineDate = (value?: string | null) => {
+    if (!value) return null;
+
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+
+    const match = value.match(/^(\d{1,2})\s([A-Za-z]{3})\s(\d{4})$/);
+    if (!match) return null;
+
+    const monthIndex = timelineMonthMap[match[2]];
+    if (monthIndex === undefined) return null;
+
+    return new Date(Number(match[3]), monthIndex, Number(match[1]));
+};
+
+const normalizeDate = () => {
+    const value = new Date();
+    value.setHours(0, 0, 0, 0);
+    return value;
+};
+
+const getTimelineStatus = (item: TimelineItem): TimelineStatus => {
+    if (item.is_tba) return "upcoming";
+    const start = parseTimelineDate(item.mulai_pada);
+    const end = parseTimelineDate(item.selesai_pada);
+    const now = normalizeDate();
+
+    if (start && now < start) return "upcoming";
+    if (end && now > end) return "finished";
+    if (start || end) return "ongoing";
+    return item.aktif ? "ongoing" : "upcoming";
+};
+
+const timelineStatusLabel = computed(() => {
+    if (!timelineItems.value.length) return "Belum ada timeline";
+
+    const statuses = timelineItems.value.map(getTimelineStatus);
+    if (statuses.includes("ongoing")) return "Sedang berlangsung";
+    if (statuses.every((status) => status === "finished")) return "Selesai";
+    return "Belum dimulai";
+});
+
+const timelineStatusClass = computed(() =>
+    timelineStatusLabel.value === "Sedang berlangsung"
+        ? "bg-indigo-50 text-indigo-700"
+        : "bg-slate-100 text-slate-600",
+);
+
+const timelineItemStatusLabel = (item: TimelineItem) => {
+    if (item.is_tba) return "TBA";
+    const status = getTimelineStatus(item);
+    if (status === "ongoing") return "Sedang berlangsung";
+    if (status === "finished") return "Selesai";
+    return "Berikutnya";
+};
+
+const timelineItemStatusClass = (item: TimelineItem) => {
+    if (item.is_tba) return "bg-slate-100 text-slate-500";
+    const status = getTimelineStatus(item);
+    if (status === "ongoing") return "bg-indigo-600 text-white";
+    if (status === "finished") return "bg-slate-200 text-slate-700";
+    return "bg-white text-slate-500";
+};
+
+const timelineItemContainerClass = (item: TimelineItem) => {
+    if (item.is_tba) return "border-dashed border-slate-200 bg-slate-50/50";
+    const status = getTimelineStatus(item);
+    if (status === "ongoing") return "border-indigo-200 bg-indigo-50 shadow-sm";
+    if (status === "finished") return "border-slate-200 bg-slate-50/70";
+    return "border-slate-200 bg-white hover:bg-slate-50";
+};
+
 const kategoriStats = computed(() => page.props.kategoriStats ?? []);
+
+const namaUser = computed(() => page.props.auth?.user?.name ?? "Admin");
+
+const weather = computed(() => page.props.weather ?? null);
+
 const totalKategoriKarya = computed(() =>
     kategoriStats.value.reduce((sum, item) => sum + item.total, 0),
 );
-const jam = new Date().getHours();
-const sapaan = computed(() => {
-    if (jam >= 4 && jam < 11) return "Selamat pagi";
-    if (jam >= 11 && jam < 15) return "Selamat siang";
-    if (jam >= 15 && jam < 18) return "Selamat sore";
-    return "Selamat malam";
-});
+
+const progressColors = [
+    "bg-indigo-500",
+    "bg-violet-500",
+    "bg-sky-500",
+    "bg-cyan-500",
+    "bg-blue-500",
+];
+
 const weatherIcon = computed(() => {
     const code = weather.value?.code;
     const isDay = weather.value?.is_day === 1;
+
     if (code === null || code === undefined) {
         return isDay ? Sun : MoonStar;
     }
+
     if (code === 0) return isDay ? Sun : MoonStar;
-    if ([1, 2, 3].includes(code)) return isDay ? CloudSun : CloudMoon;
+
+    if ([1, 2, 3].includes(code)) {
+        return isDay ? CloudSun : CloudMoon;
+    }
+
     if ([45, 48].includes(code)) return Cloud;
-    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67].includes(code))
+
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67].includes(code)) {
         return CloudRain;
-    if ([71, 73, 75, 77, 85, 86].includes(code)) return CloudSnow;
-    if ([80, 81, 82].includes(code)) return CloudRain;
-    if ([95, 96, 99].includes(code)) return CloudLightning;
+    }
+
+    if ([71, 73, 75, 77, 85, 86].includes(code)) {
+        return CloudSnow;
+    }
+
+    if ([80, 81, 82].includes(code)) {
+        return CloudRain;
+    }
+
+    if ([95, 96, 99].includes(code)) {
+        return CloudLightning;
+    }
+
     return Cloud;
 });
 
-const isReady = ref(false);
-onMounted(() => {
-    requestAnimationFrame(() => {
-        isReady.value = true;
-    });
-});
-
-const progressColors = [
-    "bg-sky-500",
-    "bg-blue-500",
-    "bg-indigo-500",
-    "bg-violet-500",
-    "bg-cyan-500",
-];
-
-const selesaikanEdisi = () => {
-    const edisi = ringkasanEdisi.value;
-    if (!edisi || edisi.status !== "aktif") return;
-    toast.warning(`Selesaikan ${edisi.nama}?`, {
-        description: "Edisi akan dipindahkan ke arsip dan tidak aktif lagi.",
-        action: {
-            label: "Ya, Selesaikan",
-            onClick: () => {
-                router.post(
-                    `/admin/edisi-lomba/${edisi.id}/selesaikan`,
-                    {},
-                    {
-                        preserveScroll: true,
-                        onSuccess: () =>
-                            toast.success(
-                                `Edisi ${edisi.nama} dipindahkan ke arsip`,
-                            ),
-                        onError: () => toast.error("Gagal menyelesaikan edisi"),
-                    },
-                );
-            },
-        },
-        cancel: {
-            label: "Batal",
-            onClick: () => {},
-        },
-    });
-};
-
-const bukaKembaliEdisi = () => {
-    const edisi = ringkasanEdisi.value;
-    if (!edisi || edisi.status !== "arsip") return;
-    toast.warning(`Buka kembali ${edisi.nama}?`, {
-        description: "Edisi arsip akan dijadikan edisi aktif kembali.",
-        action: {
-            label: "Ya, Buka Kembali",
-            onClick: () => {
-                router.post(
-                    `/admin/edisi-lomba/${edisi.id}/aktifkan`,
-                    {},
-                    {
-                        preserveScroll: true,
-                        onSuccess: () =>
-                            toast.success(`Edisi ${edisi.nama} aktif kembali`),
-                        onError: () =>
-                            toast.error("Gagal membuka kembali edisi"),
-                    },
-                );
-            },
-        },
-        cancel: {
-            label: "Batal",
-            onClick: () => {},
-        },
-    });
-};
-
-defineOptions({
-    layout: (h, page) => h(DashboardLayout, { title: "Dashboard" }, () => page),
-});
+const summaryCards = computed(() => [
+    {
+        label: "Total Karya",
+        value: statistik.value.total_karya,
+        helper: "Semua karya pada edisi aktif",
+        icon: FolderKanban,
+    },
+    {
+        label: "Karya Terkirim Lengkap",
+        value: statistik.value.karya_submitted,
+        helper: "Karya yang telah disubmit peserta",
+        icon: Send,
+    },
+    {
+        label: "Karya Lolos Nominasi",
+        value: statistik.value.karya_nominasi,
+        helper: "Karya yang lolos penjurian tahap 1",
+        icon: Trophy,
+    },
+    {
+        label: "Karya Dinilai Tahap 2",
+        value: statistik.value.karya_dinilai_tahap_2,
+        helper: "Karya yang masuk penilaian lanjutan",
+        icon: ClipboardCheck,
+    },
+]);
 </script>
 
 <template>
-    <div class="space-y-6">
-        <!-- Welcome -->
-        <div
-            v-if="!isReady"
-            class="relative bg-white border rounded-2xl p-6 shadow-sm animate-pulse"
-        >
-            <div class="flex items-start gap-4">
-                <div class="h-16 w-16 rounded-2xl bg-slate-100" />
-                <div class="space-y-3 flex-1">
-                    <div class="h-5 w-48 rounded-full bg-slate-100" />
-                    <div class="h-4 w-40 rounded-full bg-slate-100" />
-                </div>
-            </div>
-            <div
-                class="absolute right-4 top-4 h-6 w-20 rounded-full bg-slate-100"
-            />
-        </div>
-
-        <div v-else class="relative bg-white border rounded-2xl p-6 shadow-sm">
-            <div class="flex items-start gap-4">
+    <div class="space-y-4">
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <!-- LEFT -->
+            <div class="space-y-4">
+                <!-- HERO -->
                 <div
-                    class="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-700"
+                    class="relative overflow-hidden rounded-lg border border-indigo-200/70 bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-700 p-6 shadow-sm shadow-indigo-900/10"
                 >
-                    <component :is="weatherIcon" class="h-8 w-8" />
-                </div>
-                <div>
-                    <h2 class="text-2xl font-semibold text-slate-900">
-                        {{ sapaan }}, Admin.
-                    </h2>
-                    <p class="mt-2 text-sm text-slate-600">
-                        GEMASI {{ ringkasanEdisi.tahun }}.
-                    </p>
-                </div>
-            </div>
-            <div
-                class="absolute right-4 top-4 inline-flex items-center rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700"
-            >
-                {{ ringkasanEdisi.status }}
-            </div>
-        </div>
-
-        <!-- KPI Cards -->
-        <div
-            v-if="!isReady"
-            class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"
-        >
-            <div
-                v-for="idx in 3"
-                :key="`kpi-skel-top-${idx}`"
-                class="bg-white border rounded-xl p-5 shadow-sm animate-pulse"
-            >
-                <div class="flex items-center justify-between">
-                    <div class="space-y-3">
-                        <div class="h-3 w-28 rounded-full bg-slate-100" />
-                        <div class="h-6 w-16 rounded-full bg-slate-100" />
-                    </div>
-                    <div class="h-10 w-10 rounded-full bg-slate-100" />
-                </div>
-            </div>
-        </div>
-
-        <div
-            v-else
-            class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"
-        >
-            <div
-                class="group bg-white border rounded-xl p-5 shadow-sm transition-all duration-200 ease-out hover:border-sky-200 hover:bg-sky-500"
-            >
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p
-                            class="text-xs font-semibold text-sky-700 transition-colors duration-200 group-hover:text-sky-50"
-                        >
-                            Total Karya
-                        </p>
-                        <h3
-                            class="text-2xl font-semibold mt-2 text-sky-700 transition-colors duration-200 group-hover:text-white"
-                        >
-                            {{ statistik.total_karya }}
-                        </h3>
-                    </div>
                     <div
-                        class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-100 text-sky-700 transition-colors duration-200 group-hover:bg-white group-hover:text-sky-600"
-                    >
-                        <FolderKanban class="h-5 w-5" />
-                    </div>
-                </div>
-            </div>
+                        class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.12),transparent_30%)]"
+                    />
 
-            <div
-                class="group bg-white border rounded-xl p-5 shadow-sm transition-all duration-200 ease-out hover:border-blue-200 hover:bg-blue-500"
-            >
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p
-                            class="text-xs font-semibold text-blue-700 transition-colors duration-200 group-hover:text-blue-50"
-                        >
-                            Karya Terkirim
-                        </p>
-                        <h3
-                            class="text-2xl font-semibold mt-2 text-blue-700 transition-colors duration-200 group-hover:text-white"
-                        >
-                            {{ statistik.karya_submitted }}
-                        </h3>
-                    </div>
                     <div
-                        class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition-colors duration-200 group-hover:bg-white group-hover:text-blue-600"
+                        class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"
                     >
-                        <Send class="h-5 w-5" />
-                    </div>
-                </div>
-            </div>
+                        <div class="space-y-5 text-white">
+                            <div class="flex items-start gap-4">
+                                <div
+                                    class="flex h-16 w-16 items-center justify-center rounded-lg bg-white/15 text-white ring-1 ring-white/15 backdrop-blur"
+                                >
+                                    <component
+                                        :is="weatherIcon"
+                                        class="h-8 w-8"
+                                    />
+                                </div>
 
-            <div
-                class="group bg-white border rounded-xl p-5 shadow-sm transition-all duration-200 ease-out hover:border-indigo-200 hover:bg-indigo-500"
-            >
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p
-                            class="text-xs font-semibold text-indigo-700 transition-colors duration-200 group-hover:text-indigo-50"
-                        >
-                            Karya Draft
-                        </p>
-                        <h3
-                            class="text-2xl font-semibold mt-2 text-indigo-700 transition-colors duration-200 group-hover:text-white"
-                        >
-                            {{ statistik.karya_draft }}
-                        </h3>
-                    </div>
-                    <div
-                        class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 transition-colors duration-200 group-hover:bg-white group-hover:text-indigo-600"
-                    >
-                        <FileText class="h-5 w-5" />
-                    </div>
-                </div>
-            </div>
-        </div>
+                                <div class="max-w-2xl">
+                                    <h1
+                                        class="text-2xl font-semibold tracking-tight"
+                                    >
+                                        Selamat datang,
+                                        {{ namaUser }}.
+                                    </h1>
 
-        <div v-if="!isReady" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div
-                v-for="idx in 2"
-                :key="`kpi-skel-bottom-${idx}`"
-                class="bg-white border rounded-xl p-5 shadow-sm animate-pulse"
-            >
-                <div class="flex items-center justify-between">
-                    <div class="space-y-3">
-                        <div class="h-3 w-28 rounded-full bg-slate-100" />
-                        <div class="h-6 w-16 rounded-full bg-slate-100" />
-                    </div>
-                    <div class="h-10 w-10 rounded-full bg-slate-100" />
-                </div>
-            </div>
-        </div>
+                                    <p
+                                        class="mt-2 max-w-xl text-sm text-white/80"
+                                    >
+                                        Pantau progres edisi, kategori, dan
+                                        penjurian GEMASI dari satu dashboard.
+                                    </p>
+                                </div>
+                            </div>
 
-        <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div
-                class="group bg-white border rounded-xl p-5 shadow-sm transition-all duration-200 ease-out hover:border-violet-200 hover:bg-violet-500"
-            >
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p
-                            class="text-xs font-semibold text-violet-700 transition-colors duration-200 group-hover:text-violet-50"
-                        >
-                            Lolos Nominasi
-                        </p>
-                        <h3
-                            class="text-2xl font-semibold mt-2 text-violet-700 transition-colors duration-200 group-hover:text-white"
-                        >
-                            {{ statistik.karya_nominasi }}
-                        </h3>
-                    </div>
-                    <div
-                        class="flex h-10 w-10 items-center justify-center rounded-full bg-violet-100 text-violet-700 transition-colors duration-200 group-hover:bg-white group-hover:text-violet-600"
-                    >
-                        <Trophy class="h-5 w-5" />
-                    </div>
-                </div>
-            </div>
+                            <div class="grid grid-cols-2 gap-3 max-w-md">
+                                <div
+                                    class="rounded-lg border border-white/15 bg-white/10 px-4 py-3 text-white backdrop-blur"
+                                >
+                                    <p
+                                        class="text-[11px] uppercase tracking-[0.2em] text-white/65"
+                                    >
+                                        Edisi
+                                    </p>
 
-            <div
-                class="group bg-white border rounded-xl p-5 shadow-sm transition-all duration-200 ease-out hover:border-cyan-200 hover:bg-cyan-500"
-            >
-                <div class="flex items-center justify-between">
-                    <div>
-                        <p
-                            class="text-xs font-semibold text-cyan-700 transition-colors duration-200 group-hover:text-cyan-50"
-                        >
-                            Dinilai Tahap 2
-                        </p>
-                        <h3
-                            class="text-2xl font-semibold mt-2 text-cyan-700 transition-colors duration-200 group-hover:text-white"
-                        >
-                            {{ statistik.karya_dinilai_tahap_2 }}
-                        </h3>
-                    </div>
-                    <div
-                        class="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-100 text-cyan-700 transition-colors duration-200 group-hover:bg-white group-hover:text-cyan-600"
-                    >
-                        <ClipboardCheck class="h-5 w-5" />
-                    </div>
-                </div>
-            </div>
-        </div>
+                                    <p class="mt-1 text-sm font-semibold">
+                                        {{ ringkasanEdisi.nama }}
+                                    </p>
+                                </div>
 
-        <!-- Data Karya per Kategori -->
-        <div
-            v-if="!isReady"
-            class="bg-white border rounded-2xl p-6 shadow-sm animate-pulse"
-        >
-            <div class="space-y-3">
-                <div class="h-4 w-56 rounded-full bg-slate-100" />
-                <div class="h-3 w-36 rounded-full bg-slate-100" />
-            </div>
-            <div class="mt-5 space-y-4">
-                <div
-                    v-for="idx in 4"
-                    :key="`cat-skel-${idx}`"
-                    class="space-y-2"
-                >
-                    <div class="h-3 w-40 rounded-full bg-slate-100" />
-                    <div class="h-2 w-full rounded-full bg-slate-100" />
-                </div>
-            </div>
-        </div>
+                                <div
+                                    class="rounded-lg border border-white/15 bg-white/10 px-4 py-3 text-white backdrop-blur"
+                                >
+                                    <p
+                                        class="text-[11px] uppercase tracking-[0.2em] text-white/65"
+                                    >
+                                        Status
+                                    </p>
 
-        <div v-else class="bg-white border rounded-2xl p-6 shadow-sm">
-            <div class="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <h3 class="text-lg font-semibold text-slate-900">
-                        Data Karya per Kategori
-                    </h3>
-                    <p class="mt-1 text-sm text-slate-600">
-                        Total karya: {{ totalKategoriKarya }}
-                    </p>
-                </div>
-            </div>
+                                    <p class="mt-1 text-sm font-semibold">
+                                        {{ ringkasanEdisi.status }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
 
-            <div v-if="kategoriStats.length" class="mt-5 space-y-4">
-                <div
-                    v-for="(item, idx) in kategoriStats"
-                    :key="item.id"
-                    class="space-y-2"
-                >
-                    <div class="flex items-center justify-between text-sm">
-                        <p class="font-medium text-slate-700">
-                            {{ item.nama }}
-                        </p>
-                        <span class="text-slate-500">
-                            {{ item.total }}
-                        </span>
-                    </div>
-                    <div class="h-2 w-full rounded-full bg-slate-100">
-                        <div
-                            class="h-2 rounded-full transition-[width] duration-700 ease-out"
-                            :class="progressColors[idx % progressColors.length]"
-                            :style="{
-                                width:
-                                    totalKategoriKarya > 0 && isReady
-                                        ? `${Math.round(
-                                              (item.total /
-                                                  totalKategoriKarya) *
-                                                  100,
-                                          )}%`
-                                        : '0%',
-                            }"
+                        <img
+                            :src="heroImage"
+                            alt="GEMASI"
+                            class="h-40 object-contain"
                         />
                     </div>
                 </div>
+
+                <!-- SUMMARY -->
+                <div
+                    class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+                >
+                    <div
+                        v-for="card in summaryCards"
+                        :key="card.label"
+                        class="group rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md"
+                    >
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-500">
+                                    {{ card.label }}
+                                </p>
+
+                                <h3
+                                    class="mt-2 text-3xl font-semibold text-slate-900"
+                                >
+                                    {{ card.value }}
+                                </h3>
+
+                                <p class="mt-2 text-sm text-slate-500">
+                                    {{ card.helper }}
+                                </p>
+                            </div>
+
+                            <div
+                                class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-all duration-200 group-hover:bg-indigo-600 group-hover:text-white"
+                                t
+                            >
+                                <component :is="card.icon" class="h-5 w-5" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CHART -->
+                <div class="rounded-lg border bg-white p-6 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900">
+                                Data Karya per Kategori
+                            </h3>
+
+                            <p class="mt-1 text-sm text-slate-600">
+                                Grafik kolom karya tiap kategori.
+                            </p>
+                        </div>
+
+                        <p class="text-sm text-slate-500">
+                            Total karya:
+                            {{ totalKategoriKarya }}
+                        </p>
+                    </div>
+
+                    <div
+                        class="mt-6 grid h-[280px] grid-cols-8 items-end gap-3 rounded-lg bg-slate-50 p-6"
+                    >
+                        <div
+                            v-for="(item, idx) in kategoriStats"
+                            :key="item.id"
+                            class="flex flex-col items-center gap-3"
+                        >
+                            <div
+                                class="w-8 rounded-t-lg transition-all duration-500"
+                                :class="
+                                    progressColors[idx % progressColors.length]
+                                "
+                                :style="{
+                                    height: `${40 + item.total * 18}px`,
+                                }"
+                            />
+
+                            <div class="text-center">
+                                <p class="text-sm font-semibold text-slate-700">
+                                    {{ item.total }}
+                                </p>
+
+                                <p
+                                    class="mt-1 text-[11px] leading-tight text-slate-500"
+                                >
+                                    {{ item.nama }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div v-else class="mt-5 text-sm text-slate-500">
-                Belum ada data karya pada kategori.
-            </div>
+
+            <!-- RIGHT -->
+            <aside class="rounded-lg border bg-white p-5 shadow-sm">
+                <div class="flex items-center justify-between gap-3">
+                    <div>
+                        <p class="text-sm font-semibold text-slate-900">
+                            Timeline
+                        </p>
+                    </div>
+                </div>
+
+                <div v-if="timelineItems.length" class="mt-4 space-y-3">
+                    <div
+                        v-for="item in timelineItems"
+                        :key="item.id"
+                        class="rounded-lg border p-3 transition-all duration-200"
+                        :class="timelineItemContainerClass(item)"
+                    >
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p
+                                    class="truncate text-sm font-semibold"
+                                    :class="
+                                        getTimelineStatus(item) === 'ongoing'
+                                            ? 'text-indigo-700'
+                                            : 'text-slate-900'
+                                    "
+                                >
+                                    {{ item.judul }}
+                                </p>
+
+                                <p class="mt-1 text-xs text-slate-500">
+                                    {{ item.mulai_pada }}
+                                    -
+                                    {{ item.selesai_pada }}
+                                </p>
+                            </div>
+
+                            <span
+                                class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                                :class="timelineItemStatusClass(item)"
+                            >
+                                {{ timelineItemStatusLabel(item) }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    v-else
+                    class="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-500"
+                >
+                    Belum ada timeline pada edisi ini.
+                </div>
+            </aside>
         </div>
     </div>
 </template>

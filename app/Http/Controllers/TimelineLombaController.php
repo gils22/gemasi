@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Edition;
 use App\Models\TimelineLomba;
+use App\Services\NominationAnnouncementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -11,24 +12,24 @@ use Inertia\Inertia;
 
 class TimelineLombaController extends Controller
 {
-    private function normalisasiUrutan(int $edisiId): void
+    private const TAHAP_UTAMA_URUTAN = [
+        'opening' => 1,
+        'pendaftaran' => 2,
+        'penjurian_tahap_1' => 3,
+        'pengumuman_nominasi' => 4,
+        'pameran_karya' => 5,
+        'penjurian_tahap_2' => 6,
+        'awarding' => 7,
+    ];
+
+    private function timelineOrderClause(): string
     {
-        $items = TimelineLomba::query()
-            ->where('edisi_lomba_id', $edisiId)
-            ->orderBy('urutan')
-            ->orderBy('id')
-            ->get(['id', 'urutan']);
-
-        foreach ($items as $index => $item) {
-            $target = $index + 1;
-            if ((int) $item->urutan === $target) {
-                continue;
-            }
-
-            TimelineLomba::query()
-                ->where('id', $item->id)
-                ->update(['urutan' => $target]);
+        $case = "CASE";
+        foreach (self::TAHAP_UTAMA_URUTAN as $fase => $urutan) {
+            $case .= " WHEN fase_kunci = '{$fase}' THEN {$urutan}";
         }
+
+        return $case . " ELSE 99 END";
     }
 
     private function resolveEdisiKonteks(Request $request): Edition
@@ -55,12 +56,13 @@ class TimelineLombaController extends Controller
         }
 
         $defaultFase = [
-            ['judul' => 'Opening GEMASI', 'fase_kunci' => 'opening', 'urutan' => 1],
-            ['judul' => 'Pendaftaran GEMASI', 'fase_kunci' => 'pendaftaran', 'urutan' => 2],
-            ['judul' => 'Penjurian Tahap 1', 'fase_kunci' => 'penjurian_tahap_1', 'urutan' => 3],
-            ['judul' => 'Penjurian Tahap 2', 'fase_kunci' => 'penjurian_tahap_2', 'urutan' => 4],
-            ['judul' => 'Pameran Karya', 'fase_kunci' => 'pameran_karya', 'urutan' => 5],
-            ['judul' => 'Awarding GEMASI', 'fase_kunci' => 'awarding', 'urutan' => 6],
+            ['judul' => 'Opening GEMASI', 'fase_kunci' => 'opening'],
+            ['judul' => 'Pendaftaran GEMASI', 'fase_kunci' => 'pendaftaran'],
+            ['judul' => 'Penjurian Tahap 1', 'fase_kunci' => 'penjurian_tahap_1'],
+            ['judul' => 'Pengumuman Nominasi', 'fase_kunci' => 'pengumuman_nominasi'],
+            ['judul' => 'Penjurian Tahap 2', 'fase_kunci' => 'penjurian_tahap_2'],
+            ['judul' => 'Pameran Karya', 'fase_kunci' => 'pameran_karya'],
+            ['judul' => 'Awarding GEMASI', 'fase_kunci' => 'awarding'],
         ];
 
         $payload = array_map(function (array $fase) use ($edisi) {
@@ -73,7 +75,6 @@ class TimelineLombaController extends Controller
                 'selesai_pada' => null,
                 'is_tba' => true,
                 'deskripsi' => null,
-                'urutan' => $fase['urutan'],
                 'aktif' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -120,7 +121,9 @@ class TimelineLombaController extends Controller
 
         $timeline = TimelineLomba::query()
             ->where('edisi_lomba_id', $edisi->id)
-            ->orderBy('urutan')
+            ->orderByRaw($this->timelineOrderClause())
+            ->orderByRaw('CASE WHEN mulai_pada IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('mulai_pada')
             ->orderBy('id')
             ->get();
 
@@ -143,6 +146,7 @@ class TimelineLombaController extends Controller
                 ['key' => 'opening', 'label' => 'Opening GEMASI'],
                 ['key' => 'pendaftaran', 'label' => 'Pendaftaran GEMASI'],
                 ['key' => 'penjurian_tahap_1', 'label' => 'Penjurian Tahap 1'],
+                ['key' => 'pengumuman_nominasi', 'label' => 'Pengumuman Nominasi'],
                 ['key' => 'penjurian_tahap_2', 'label' => 'Penjurian Tahap 2'],
                 ['key' => 'pameran_karya', 'label' => 'Pameran Karya'],
                 ['key' => 'awarding', 'label' => 'Awarding GEMASI'],
@@ -162,13 +166,12 @@ class TimelineLombaController extends Controller
             'fase_kunci' => [
                 'required_if:tipe,utama',
                 'nullable',
-                Rule::in(['opening', 'pendaftaran', 'penjurian_tahap_1', 'penjurian_tahap_2', 'pameran_karya', 'awarding']),
+                Rule::in(['opening', 'pendaftaran', 'penjurian_tahap_1', 'pengumuman_nominasi', 'penjurian_tahap_2', 'pameran_karya', 'awarding']),
             ],
             'mulai_pada' => 'nullable|date',
             'selesai_pada' => 'nullable|date|after_or_equal:mulai_pada',
             'is_tba' => 'nullable|boolean',
             'deskripsi' => 'nullable|string|max:2000',
-            'urutan' => 'nullable|integer|min:0|max:9999',
             'aktif' => 'nullable|boolean',
         ]);
 
@@ -178,15 +181,9 @@ class TimelineLombaController extends Controller
             $validated['selesai_pada'] = null;
         }
 
-        $urutanBaru = (int) ($validated['urutan'] ?? 0);
-
-        DB::transaction(function () use ($edisi, $validated, $isTba, $urutanBaru) {
-            TimelineLomba::query()
-                ->where('edisi_lomba_id', $edisi->id)
-                ->where('urutan', '>=', $urutanBaru)
-                ->increment('urutan');
-
-            TimelineLomba::query()->create([
+        $timelineBaru = null;
+        DB::transaction(function () use ($edisi, $validated, $isTba, &$timelineBaru) {
+            $timelineBaru = TimelineLomba::query()->create([
                 'edisi_lomba_id' => $edisi->id,
                 'judul' => trim($validated['judul']),
                 'tipe' => $validated['tipe'],
@@ -195,10 +192,13 @@ class TimelineLombaController extends Controller
                 'selesai_pada' => $validated['selesai_pada'] ?? null,
                 'is_tba' => $isTba,
                 'deskripsi' => $validated['deskripsi'] ?? null,
-                'urutan' => $urutanBaru,
                 'aktif' => (bool) ($validated['aktif'] ?? true),
             ]);
         });
+
+        if ($timelineBaru?->aktif) {
+            app(NominationAnnouncementService::class)->queueForTimeline($timelineBaru);
+        }
 
         return redirect()->back()->setStatusCode(303);
     }
@@ -216,13 +216,12 @@ class TimelineLombaController extends Controller
             'fase_kunci' => [
                 'required_if:tipe,utama',
                 'nullable',
-                Rule::in(['opening', 'pendaftaran', 'penjurian_tahap_1', 'penjurian_tahap_2', 'pameran_karya', 'awarding']),
+                Rule::in(['opening', 'pendaftaran', 'penjurian_tahap_1', 'pengumuman_nominasi', 'penjurian_tahap_2', 'pameran_karya', 'awarding']),
             ],
             'mulai_pada' => 'nullable|date',
             'selesai_pada' => 'nullable|date|after_or_equal:mulai_pada',
             'is_tba' => 'nullable|boolean',
             'deskripsi' => 'nullable|string|max:2000',
-            'urutan' => 'nullable|integer|min:0|max:9999',
             'aktif' => 'nullable|boolean',
         ]);
 
@@ -232,26 +231,7 @@ class TimelineLombaController extends Controller
             $validated['selesai_pada'] = null;
         }
 
-        $urutanLama = (int) $timeline->urutan;
-        $urutanBaru = (int) ($validated['urutan'] ?? 0);
-
-        DB::transaction(function () use ($timeline, $validated, $isTba, $edisi, $urutanLama, $urutanBaru) {
-            if ($urutanBaru > $urutanLama) {
-                TimelineLomba::query()
-                    ->where('edisi_lomba_id', $edisi->id)
-                    ->where('id', '!=', $timeline->id)
-                    ->where('urutan', '>', $urutanLama)
-                    ->where('urutan', '<=', $urutanBaru)
-                    ->decrement('urutan');
-            } elseif ($urutanBaru < $urutanLama) {
-                TimelineLomba::query()
-                    ->where('edisi_lomba_id', $edisi->id)
-                    ->where('id', '!=', $timeline->id)
-                    ->where('urutan', '>=', $urutanBaru)
-                    ->where('urutan', '<', $urutanLama)
-                    ->increment('urutan');
-            }
-
+        DB::transaction(function () use ($timeline, $validated, $isTba) {
             $timeline->update([
                 'judul' => trim($validated['judul']),
                 'tipe' => $validated['tipe'],
@@ -260,10 +240,13 @@ class TimelineLombaController extends Controller
                 'selesai_pada' => $validated['selesai_pada'] ?? null,
                 'is_tba' => $isTba,
                 'deskripsi' => $validated['deskripsi'] ?? null,
-                'urutan' => $urutanBaru,
                 'aktif' => (bool) ($validated['aktif'] ?? true),
             ]);
         });
+
+        if ($timeline->aktif) {
+            app(NominationAnnouncementService::class)->queueForTimeline($timeline);
+        }
 
         return redirect()->back()->setStatusCode(303);
     }
@@ -277,7 +260,6 @@ class TimelineLombaController extends Controller
 
         DB::transaction(function () use ($timeline, $edisi) {
             $timeline->delete();
-            $this->normalisasiUrutan((int) $edisi->id);
         });
 
         return redirect()->back()->setStatusCode(303);
@@ -298,6 +280,10 @@ class TimelineLombaController extends Controller
             'aktif' => (bool) $validated['aktif'],
         ]);
 
+        if ($timeline->aktif) {
+            app(NominationAnnouncementService::class)->queueForTimeline($timeline);
+        }
+
         return redirect()->back()->setStatusCode(303);
     }
 
@@ -316,8 +302,6 @@ class TimelineLombaController extends Controller
             ->where('edisi_lomba_id', $edisi->id)
             ->whereIn('id', $validated['ids'])
             ->delete();
-
-        $this->normalisasiUrutan((int) $edisi->id);
 
         return redirect()->back()->setStatusCode(303);
     }

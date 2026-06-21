@@ -1,9 +1,11 @@
 ﻿<script setup lang="ts">
 import { usePage, router } from "@inertiajs/vue3";
+import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import {
     ListIndentDecrease,
     ListIndentIncrease,
     Bell,
+    Search,
     ChevronDown,
     CornerUpLeft,
     LogOut,
@@ -18,10 +20,12 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PopoverTrigger } from "@/components/ui/popover";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import GlobalCommandPalette from "@/components/dashboard/GlobalCommandPalette.vue";
 import type { PageProps } from "@/types/inertia";
-import { computed, ref, watch } from "vue";
+import type { RoleKey } from "@/types/menu";
 
 const props = defineProps<{
     title?: string;
@@ -101,6 +105,85 @@ const fallbackTitle = computed(() => {
     return "Dashboard";
 });
 const displayTitle = computed(() => props.title?.trim() || fallbackTitle.value);
+const searchOpen = ref(false);
+const searchQuery = ref("");
+const notificationOpen = ref(false);
+const allowedRoles: RoleKey[] = ["admin", "juri", "peserta"];
+const searchRole = computed<RoleKey | null>(() =>
+    allowedRoles.includes(currentRole.value as RoleKey)
+        ? (currentRole.value as RoleKey)
+        : null,
+);
+const flash = computed(() => page.props.flash ?? {});
+const notifications = computed(() => {
+    const items: Array<{
+        title: string;
+        description: string;
+        tone: "success" | "error" | "welcome";
+    }> = [];
+
+    if (flash.value.welcome) {
+        items.push({
+            title: "Selamat datang",
+            description: flash.value.welcome,
+            tone: "welcome",
+        });
+    }
+
+    if (flash.value.success) {
+        items.push({
+            title: "Berhasil",
+            description: flash.value.success,
+            tone: "success",
+        });
+    }
+
+    if (flash.value.error) {
+        items.push({
+            title: "Perhatian",
+            description: flash.value.error,
+            tone: "error",
+        });
+    }
+
+    return items;
+});
+
+const notificationToneClass = (tone: "success" | "error" | "welcome") => {
+    if (tone === "success") return "bg-emerald-50 text-emerald-700";
+    if (tone === "error") return "bg-rose-50 text-rose-700";
+    return "bg-indigo-50 text-indigo-700";
+};
+
+const openSearch = () => {
+    if (!searchRole.value) return;
+    searchOpen.value = true;
+};
+
+const handleGlobalShortcut = (event: KeyboardEvent) => {
+    const isMac = navigator.platform.toUpperCase().includes("MAC");
+    const shortcutPressed = isMac ? event.metaKey : event.ctrlKey;
+
+    if (!shortcutPressed || event.key.toLowerCase() !== "k") return;
+
+    event.preventDefault();
+    openSearch();
+};
+
+onMounted(() => {
+    window.addEventListener("keydown", handleGlobalShortcut);
+    if (flash.value.welcome) {
+        notificationOpen.value = true;
+    }
+});
+
+onUnmounted(() => {
+    window.removeEventListener("keydown", handleGlobalShortcut);
+});
+
+watch(searchOpen, (value) => {
+    if (!value) searchQuery.value = "";
+});
 
 const logout = () => {
     router.post("/logout");
@@ -164,12 +247,94 @@ const openChooseRole = () => {
             <!-- Optional Actions from Page -->
             <slot name="actions" />
 
-            <!-- Notification -->
-            <button
-                class="hidden sm:inline-flex rounded-md p-2 hover:bg-slate-100 transition-colors duration-200"
+            <GlobalCommandPalette
+                v-model:open="searchOpen"
+                v-model:query="searchQuery"
+                :role="searchRole"
             >
-                <Bell class="w-4 h-4 text-slate-600" />
-            </button>
+                <template #trigger>
+                    <PopoverTrigger as-child>
+                        <button
+                            v-if="searchRole"
+                            type="button"
+                            class="hidden items-center gap-2 rounded-sm border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 sm:inline-flex"
+                            @click="openSearch"
+                        >
+                            <Search class="h-4 w-4 text-slate-500" />
+                            <span>Cari menu...</span>
+                            <span
+                                class="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] font-semibold text-slate-500"
+                            >
+                                Ctrl K
+                            </span>
+                        </button>
+                    </PopoverTrigger>
+                </template>
+            </GlobalCommandPalette>
+
+            <!-- Notification -->
+            <DropdownMenu v-model:open="notificationOpen">
+                <DropdownMenuTrigger as-child>
+                    <button
+                        class="relative hidden rounded-md p-2 transition-colors duration-200 hover:bg-slate-100 sm:inline-flex"
+                        type="button"
+                    >
+                        <Bell class="w-4 h-4 text-slate-600" />
+                        <span
+                            v-if="notifications.length"
+                            class="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white"
+                        />
+                    </button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent
+                    align="end"
+                    class="w-80 overflow-hidden rounded-md border bg-white p-0 shadow-md"
+                >
+                    <div class="border-b px-4 py-3">
+                        <p class="text-sm font-semibold text-slate-900">
+                            Notifikasi
+                        </p>
+                    </div>
+
+                    <div
+                        v-if="notifications.length"
+                        class="max-h-80 overflow-y-auto p-2"
+                    >
+                        <div
+                            v-for="(item, index) in notifications"
+                            :key="`${item.title}-${index}`"
+                            class="rounded-lg px-3 py-3 transition-colors hover:bg-slate-50"
+                        >
+                            <div class="flex items-start gap-3">
+                                <div
+                                    class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+                                    :class="notificationToneClass(item.tone)"
+                                >
+                                    <Bell class="h-4 w-4" />
+                                </div>
+                                <div class="min-w-0">
+                                    <p
+                                        class="text-sm font-semibold text-slate-900"
+                                    >
+                                        {{ item.title }}
+                                    </p>
+                                    <p class="mt-1 text-sm text-slate-600">
+                                        {{ item.description }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        v-else
+                        class="px-4 py-8 text-center text-sm text-slate-500"
+                    >
+                        Belum ada notifikasi.
+                    </div>
+                </DropdownMenuContent>
+            </DropdownMenu>
 
             <!-- PROFILE DROPDOWN -->
             <DropdownMenu>
@@ -203,7 +368,7 @@ const openChooseRole = () => {
 
                 <DropdownMenuContent
                     align="end"
-                    class="w-60 rounded-xl border bg-white shadow-md p-0 overflow-hidden"
+                    class="w-60 rounded-md border bg-white shadow-md p-0 overflow-hidden"
                 >
                     <!-- Header -->
                     <div class="px-4 py-3 flex items-center gap-3">

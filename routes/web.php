@@ -20,7 +20,6 @@ use App\Http\Controllers\Peserta\KaryaController;
 use App\Http\Controllers\Peserta\ArsipController;
 use App\Http\Controllers\Peserta\DashboardController as PesertaDashboardController;
 use App\Http\Controllers\Peserta\PameranController;
-use App\Http\Controllers\Peserta\JuaraController as PesertaJuaraController;
 use App\Http\Controllers\Admin\PameranController as AdminPameranController;
 use App\Http\Controllers\Admin\PemenangController;
 use App\Http\Controllers\SubmissionController;
@@ -35,6 +34,7 @@ use App\Http\Controllers\Admin\EdisiLombaController;
 use App\Http\Controllers\Admin\DosenController;
 use App\Http\Controllers\SuperadminController;
 use App\Http\Controllers\AccountController;
+use App\Models\PenugasanJuriKategori;
 
 /*
 |--------------------------------------------------------------------------
@@ -46,23 +46,45 @@ Route::get('/', [LandingController::class, 'index'])->name('landing');
 Route::get('/panduan', [LandingController::class, 'panduan'])->name('landing.panduan');
 Route::get('/pameran', [LandingController::class, 'pameran'])->name('landing.pameran');
 Route::get('/nominate', [LandingController::class, 'nominate'])->name('landing.nominate');
+Route::get('/gallery', [LandingController::class, 'gallery'])->name('landing.gallery');
 Route::get('/juara', [LandingController::class, 'juara'])->name('landing.juara');
 Route::get('/juara/{id}', [LandingController::class, 'juaraDetail'])->name('landing.juara.detail');
 Route::get('/juara/logo/{karya}', [LandingController::class, 'previewJuaraLogo'])->name('landing.juara.logo.preview');
+Route::get('/landing/video/preview', [LandingController::class, 'previewMotionGraphicVideo'])->name('landing.motion.video.preview');
+Route::get('/landing/carousel/{path}', [LandingController::class, 'previewCarouselImage'])
+    ->where('path', '.*')
+    ->name('landing.carousel.preview');
+Route::get('/landing/gallery/{path}', [LandingController::class, 'previewGalleryImage'])
+    ->where('path', '.*')
+    ->name('landing.gallery.preview');
 
 Route::get('/login', function () {
-    return Inertia::render('Auth/Login');
+    $setting = \App\Models\LandingSetting::query()->first();
+    $carousel = collect($setting?->login_carousel_items ?? [])
+        ->map(function ($item) {
+            if (!is_array($item)) {
+                return null;
+            }
+
+            $path = trim((string) ($item['path'] ?? ''));
+            if ($path === '') {
+                return null;
+            }
+
+            return [
+                'name' => trim((string) ($item['name'] ?? basename($path))),
+                'preview_url' => route('landing.carousel.preview', ['path' => $path]),
+            ];
+        })
+        ->filter()
+        ->values();
+
+    return Inertia::render('Auth/Login', [
+        'login_carousel_images' => $carousel,
+    ]);
 })->name('login');
 
-
-/*
-|--------------------------------------------------------------------------
-| GOOGLE OAUTH (1 CALLBACK)
-|--------------------------------------------------------------------------
-*/
-
 Route::get('/auth/google', function () {
-    // Single entry: role is resolved after callback based on existing roles + email domain.
     $driver = Socialite::driver('google')
         ->scopes(['openid', 'profile', 'email']);
 
@@ -70,13 +92,11 @@ Route::get('/auth/google', function () {
         return $driver->with(['prompt' => 'select_account'])->redirect();
     }
 
-    // Production: keep account picker open; enforce allowed domains after callback.
     return $driver->with([
         'prompt' => 'select_account',
     ])->redirect();
 });
 
-// Backward compatibility (old links)
 Route::get('/auth/google/peserta', fn () => redirect('/auth/google'))->name('auth.google.peserta');
 Route::get('/auth/google/admin', fn () => redirect('/auth/google'))->name('auth.google.admin');
 
@@ -93,26 +113,21 @@ Route::get('/auth/google/callback', function () {
     $isSuperadmin = in_array(Str::lower(trim((string) $email)), $superadminEmails, true);
 
     $avatar = $googleUser->getAvatar();
-
-    // Optional: ubah ukuran jadi lebih besar
     $avatar = $avatar ? str_replace('=s96-c', '=s200-c', $avatar) : null;
 
     $existingUser = User::query()->where('email', $email)->first();
+    $isFirstLogin = !$existingUser;
     $existingIsAdminOrJuri = $existingUser?->roles()
         ->whereIn('name', ['admin', 'juri'])
         ->exists();
 
-    // Production guardrails:
-    // - students.amikom.ac.id => peserta (auto create role if missing)
-    // - amikom.ac.id => admin/juri only if registered
-    // - other domains => blocked
     if (!app()->environment('local') && !$isSuperadmin) {
         if ($domain === 'amikom.ac.id' && !$existingIsAdminOrJuri) {
-            return redirect('/login')->with('error', 'Email tidak terdaftar.');
+            return redirect('/login')->with('error', 'Email belum terdaftar.');
         }
 
         if (!in_array($domain, ['amikom.ac.id', 'students.amikom.ac.id'], true)) {
-            return redirect('/login')->with('error', 'Email tidak terdaftar.');
+            return redirect('/login')->with('error', 'Email belum terdaftar.');
         }
     }
     $resolvedName = $googleUser->getName()
@@ -131,7 +146,6 @@ Route::get('/auth/google/callback', function () {
         ]
     );
 
-    // Assign role automatically for participants (students domain) if none exists.
     if ($domain === 'students.amikom.ac.id' && !$user->roles()->exists()) {
         $role = Role::where('name', 'peserta')->first();
         if (!$role) {
@@ -140,7 +154,6 @@ Route::get('/auth/google/callback', function () {
         $user->roles()->attach($role->id);
     }
 
-    // Local convenience: allow first Google login to become admin if no role exists yet.
     if (app()->environment('local') && !$user->roles()->exists()) {
         $adminRole = Role::where('name', 'admin')->first();
         if ($adminRole) {
@@ -176,6 +189,11 @@ Route::get('/auth/google/callback', function () {
     }
 
     Auth::login($user);
+
+    if ($isFirstLogin) {
+        session()->flash('welcome', 'Selamat datang, ' . $resolvedName . '!');
+    }
+
     return redirect('/redirect-role');
 });
 
@@ -245,7 +263,7 @@ Route::post('/logout', function () {
     Auth::logout();
     request()->session()->invalidate();
     request()->session()->regenerateToken();
-    return redirect('/');
+    return redirect('/login')->with('success', 'Anda berhasil logout.');
 })->middleware('auth');
 
 // Akun (umum, berlaku untuk semua role yang sedang login)
@@ -271,6 +289,8 @@ Route::middleware(['auth', 'role:peserta'])
             ->name('peserta.account');
         Route::get('/arsip', [ArsipController::class, 'index'])
             ->name('peserta.arsip');
+        Route::get('/arsip/{karya}', [ArsipController::class, 'show'])
+            ->name('peserta.arsip.show');
 
         Route::get('/daftar-karya', [KaryaController::class, 'daftar'])
             ->name('peserta.daftar-karya');
@@ -301,11 +321,6 @@ Route::middleware(['auth', 'role:peserta'])
         Route::get('/pameran-karya/{karya}/logo', [PameranController::class, 'previewLogo'])
             ->name('peserta.pameran.logo.preview');
 
-        Route::get('/juara', [PesertaJuaraController::class, 'index'])
-            ->name('peserta.juara.index');
-        Route::patch('/juara/{karya}', [PesertaJuaraController::class, 'update'])
-            ->name('peserta.juara.update');
-
         Route::get('/submission', function () {
             return redirect()->route('peserta.daftar-karya');
         })->name('peserta.submission');
@@ -324,7 +339,6 @@ Route::middleware(['auth', 'role:admin'])
         Route::get('/akun', [AccountController::class, 'show'])
             ->name('admin.account');
 
-        // FILTER VIEW
         Route::get('/peserta', [UserController::class, 'peserta'])
             ->name('admin.peserta');
 
@@ -366,6 +380,8 @@ Route::middleware(['auth', 'role:admin'])
 
         Route::get('/kategori', [KategoriLombaController::class, 'index'])
             ->name('admin.kategori.index');
+        Route::get('/kategori/{kategori}/icon', [KategoriLombaController::class, 'previewIcon'])
+            ->name('kategori.icon.preview');
         Route::post('/kategori', [KategoriLombaController::class, 'store'])
             ->name('admin.kategori.store');
         Route::put('/kategori/{kategori}', [KategoriLombaController::class, 'update'])
@@ -462,11 +478,15 @@ Route::middleware(['auth', 'role:admin'])
             ->name('admin.pemenang.index');
         Route::post('/pemenang/tetapkan', [PemenangController::class, 'tetapkan'])
             ->name('admin.pemenang.tetapkan');
+        Route::post('/pemenang/favorit', [PemenangController::class, 'tetapkanFavorit'])
+            ->name('admin.pemenang.favorit');
 
         Route::get('/landing', [LandingSettingController::class, 'index'])
             ->name('admin.landing.index');
         Route::put('/landing', [LandingSettingController::class, 'update'])
             ->name('admin.landing.update');
+        Route::get('/landing/video/preview', [LandingSettingController::class, 'previewVideo'])
+            ->name('admin.landing.video.preview');
 
         // CRUD USER (SATU SUMBER)
         Route::post('/users', [UserController::class, 'store'])
@@ -506,6 +526,32 @@ Route::middleware(['auth', 'role:juri'])
             ->name('juri.submission.lampiran.preview');
 
         Route::get('/penjurian', function () {
+            $user = auth()->user();
+            $edisiId = session('edisi_aktif_id')
+                ?? Edition::query()->where('status', 'aktif')->value('id')
+                ?? Edition::query()->where('aktif', true)->value('id');
+
+            $stage1Assigned = false;
+            $stage2Assigned = false;
+
+            if ($user && $edisiId) {
+                $stage1Assigned = PenugasanJuriKategori::query()
+                    ->where('edisi_lomba_id', $edisiId)
+                    ->where('juri_id', $user->id)
+                    ->whereIn('tahap', ['tahap_1', 'tahap_1_2'])
+                    ->exists();
+
+                $stage2Assigned = PenugasanJuriKategori::query()
+                    ->where('edisi_lomba_id', $edisiId)
+                    ->where('juri_id', $user->id)
+                    ->whereIn('tahap', ['tahap_2', 'tahap_1_2'])
+                    ->exists();
+            }
+
+            if ($stage1Assigned && !$stage2Assigned) {
+                return redirect()->route('juri.submission.karya');
+            }
+
             return redirect()->route('juri.penjurian.nominasi');
         })->name('juri.penjurian.index');
         Route::get('/penjurian/nominasi', [PenjurianController::class, 'nominasi'])

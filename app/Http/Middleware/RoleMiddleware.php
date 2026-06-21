@@ -20,9 +20,6 @@ class RoleMiddleware
                 return $next($request);
             }
 
-            // Fallback: role berbasis edisi (pivot `edisi_lomba_user_role`).
-            // Ini penting untuk production jika data role tidak selalu tersinkron ke pivot global `role_user`,
-            // terutama saat superadmin melakukan impersonate berdasarkan edisi yang dipilih.
             if (method_exists($user, 'editionRoles')) {
                 $edisiId = (int) session('edisi_aktif_id', 0);
 

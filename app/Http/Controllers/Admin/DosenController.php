@@ -32,7 +32,6 @@ class DosenController extends Controller
             'aktif' => ['required', 'boolean'],
         ];
 
-        // Paksa pesan validasi menggunakan Bahasa Indonesia (untuk konsistensi UI).
         $messages = [
             'required' => 'Kolom :attribute wajib diisi.',
             'email' => 'Kolom :attribute harus berupa alamat email yang valid.',
@@ -81,7 +80,6 @@ class DosenController extends Controller
             ])->setStatusCode(303);
         }
 
-        // Import dari Excel (frontend parsing) akan mengirim payload rows.
         if ($hasRows) {
             $records = [];
             $errors = [];

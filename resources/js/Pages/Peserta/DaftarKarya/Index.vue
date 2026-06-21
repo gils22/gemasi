@@ -39,6 +39,7 @@ const page = usePage<
         karyaDraft?: Partial<FormDaftarKarya>;
         pendaftaranDibuka?: boolean;
         readOnly?: boolean;
+        isArsipReadOnly?: boolean;
         templateProposalUrl?: string | null;
         templateProposalName?: string | null;
         flash?: {
@@ -55,6 +56,7 @@ const templateProposalUrl = computed(
 const templateProposalName = computed(
     () => page.props.templateProposalName ?? null,
 );
+const isArsipReadOnly = computed(() => Boolean(page.props.isArsipReadOnly));
 const gemasiAktifLabel = computed(() => {
     if (page.props.gemasiAktifLabel) return page.props.gemasiAktifLabel;
     if (edisiAktif.value)
@@ -101,6 +103,7 @@ const form = ref<FormDaftarKarya>(defaultForm());
 const isSavingStep = ref(false);
 const isSubmitting = ref(false);
 const isReadOnly = computed(() => Boolean(page.props.readOnly));
+const formErrors = computed(() => (page.props as any).errors ?? {});
 
 const karyaDraft = computed(() => page.props.karyaDraft ?? null);
 const isEditMode = computed(() => Boolean(form.value.id));
@@ -155,7 +158,9 @@ const isLangkahValid = computed(() => {
         const pembimbing = form.value.dosenPembimbing;
         const pembimbingLengkap =
             pembimbing.nama.trim().length > 0 &&
-            pembimbing.email.trim().length > 0 &&
+            pembimbing.nik.trim().length > 0 &&
+            /^[0-9]+$/.test(pembimbing.nik.trim()) &&
+            /\S+@\S+\.\S+/.test(pembimbing.email.trim()) &&
             pembimbing.bidang.trim().length > 0;
         if (!pembimbingLengkap) return false;
 
@@ -164,8 +169,9 @@ const isLangkahValid = computed(() => {
         const semuaLengkap = form.value.anggotaTim.every(
             (item) =>
                 item.nim.trim().length > 0 &&
+                /^[0-9]+$/.test(item.nim.trim()) &&
                 item.nama.trim().length > 0 &&
-                item.email.trim().length > 0,
+                /\S+@\S+\.\S+/.test(item.email.trim()),
         );
         if (!semuaLengkap) return false;
 
@@ -176,14 +182,63 @@ const isLangkahValid = computed(() => {
 
         return true;
     }
-    return true;
+    return form.value.proposalLink.trim().length > 0;
+});
+
+const validationMessage = computed(() => {
+    if (isReadOnly.value) return "";
+
+    if (langkahAktif.value === 1) {
+        if (!form.value.kategori.trim()) return "Kategori karya wajib diisi.";
+        if (!form.value.namaKarya.trim()) return "Nama karya wajib diisi.";
+        if (!form.value.waKetua.trim()) return "Nomor WA wajib diisi.";
+        if (!/^[0-9+\-\s]+$/.test(form.value.waKetua.trim()))
+            return "Nomor WA harus angka.";
+        return "";
+    }
+
+    if (langkahAktif.value === 2) {
+        const pembimbing = form.value.dosenPembimbing;
+        if (!pembimbing.nik.trim()) return "NIK dosen pembimbing wajib diisi.";
+        if (!/^[0-9]+$/.test(pembimbing.nik.trim()))
+            return "NIK hanya boleh angka.";
+        if (!pembimbing.nama.trim())
+            return "Nama dosen pembimbing wajib diisi.";
+        if (!pembimbing.email.trim())
+            return "Email dosen pembimbing wajib diisi.";
+        if (!/\S+@\S+\.\S+/.test(pembimbing.email.trim()))
+            return "Email harus valid.";
+        if (!pembimbing.bidang.trim())
+            return "Bidang pembimbingan wajib diisi.";
+        if (!form.value.anggotaTim.length)
+            return "Minimal satu anggota tim wajib diisi.";
+
+        for (const anggota of form.value.anggotaTim) {
+            if (!anggota.nim.trim()) return "NIM anggota wajib diisi.";
+            if (!/^[0-9]+$/.test(anggota.nim.trim()))
+                return "NIM hanya boleh angka.";
+            if (!anggota.nama.trim()) return "Nama anggota wajib diisi.";
+            if (!anggota.email.trim()) return "Email anggota wajib diisi.";
+            if (!/\S+@\S+\.\S+/.test(anggota.email.trim()))
+                return "Email harus valid.";
+        }
+
+        const jumlahKetua = form.value.anggotaTim.filter(
+            (item) => item.peran === "ketua",
+        ).length;
+        if (jumlahKetua !== 1) return "Harus ada tepat satu ketua tim.";
+        return "";
+    }
+
+    if (!form.value.proposalLink.trim()) return "Proposal wajib diisi.";
+    return "";
 });
 
 const goPrev = () => {
     if (langkahAktif.value > 1) langkahAktif.value--;
 };
 
-const saveStepDraft = (step: number) => {
+const saveStepDraft = (step: number, advanceStep = false) => {
     const payload: Record<string, unknown> = {
         id: form.value.id ?? null,
         step,
@@ -196,6 +251,9 @@ const saveStepDraft = (step: number) => {
     } else if (step === 2) {
         payload.dosenPembimbing = form.value.dosenPembimbing;
         payload.anggotaTim = form.value.anggotaTim;
+    } else if (step === 3) {
+        payload.proposalLink = form.value.proposalLink;
+        payload.linkTambahan = form.value.linkTambahan;
     }
 
     isSavingStep.value = true;
@@ -208,7 +266,9 @@ const saveStepDraft = (step: number) => {
                 form.value.id = karyaId;
             }
             toast.success(`Tahap ${step} tersimpan.`);
-            if (langkahAktif.value < totalLangkah) langkahAktif.value++;
+            if (advanceStep && langkahAktif.value < totalLangkah) {
+                langkahAktif.value++;
+            }
         },
         onError: (errors) => {
             const pesan = Object.values(errors ?? {})[0] as string | undefined;
@@ -227,23 +287,27 @@ const goNext = () => {
     }
 
     if (!isLangkahValid.value) {
-        toast.error("Lengkapi field wajib di langkah ini");
-        return;
-    }
-
-    if ([1, 2].includes(langkahAktif.value)) {
-        saveStepDraft(langkahAktif.value);
         return;
     }
 
     if (langkahAktif.value < totalLangkah) langkahAktif.value++;
 };
 
+const simpanDraft = () => {
+    if (isReadOnly.value) return;
+    if (!isLangkahValid.value) {
+        return;
+    }
+
+    if ([1, 2, 3].includes(langkahAktif.value)) {
+        saveStepDraft(langkahAktif.value, false);
+    }
+};
+
 const submit = () => {
     if (isReadOnly.value) return;
 
     if (!isLangkahValid.value) {
-        toast.error("Lengkapi data sebelum mengirim");
         return;
     }
 
@@ -277,8 +341,11 @@ const submit = () => {
                     <Badge variant="secondary" class="max-w-full truncate">
                         {{ gemasiAktifLabel }}
                     </Badge>
-                    <Badge v-if="isReadOnly" class="bg-sky-50 text-sky-700">
-                        Mode baca
+                    <Badge
+                        v-if="isReadOnly && !isArsipReadOnly"
+                        class="bg-sky-50 text-sky-700"
+                    >
+                        Anggota view only
                     </Badge>
                 </div>
 
@@ -320,11 +387,13 @@ const submit = () => {
                     :form="form"
                     :daftar-kategori="daftarKategori"
                     :read-only="isReadOnly"
+                    :errors="formErrors"
                 />
                 <StepTim
                     v-else-if="langkahAktif === 2"
                     :form="form"
                     :read-only="isReadOnly"
+                    :errors="formErrors"
                 />
                 <StepLampiran
                     v-else
@@ -332,13 +401,14 @@ const submit = () => {
                     :read-only="isReadOnly"
                     :template-proposal-url="templateProposalUrl"
                     :template-proposal-name="templateProposalName"
+                    :errors="formErrors"
                 />
 
                 <CardFooter
-                    class="px-0 pt-2 border-t-0 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between"
+                    class="px-0 pt-2 border-t-0 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                 >
                     <Button
-                        v-if="isReadOnly"
+                        v-if="isArsipReadOnly"
                         variant="outline"
                         class="w-full sm:w-auto"
                         @click="router.get('/peserta/arsip')"
@@ -346,45 +416,59 @@ const submit = () => {
                         Kembali ke Arsip
                     </Button>
 
-                    <Button
-                        v-else-if="langkahAktif > 1"
-                        variant="outline"
-                        class="w-full sm:w-auto"
-                        @click="goPrev"
-                    >
-                        <ArrowLeft class="w-4 h-4" />
-                    </Button>
+                    <div class="flex w-full justify-start sm:w-auto">
+                        <Button
+                            v-if="langkahAktif > 1"
+                            variant="outline"
+                            class="w-full sm:w-auto"
+                            @click="goPrev"
+                        >
+                            <ArrowLeft class="w-4 h-4" />
+                            <span>Kembali</span>
+                        </Button>
+                    </div>
 
-                    <div v-else class="hidden sm:block" />
-
-                    <Button
-                        v-if="langkahAktif < totalLangkah"
-                        :disabled="
-                            (!isReadOnly && !isLangkahValid) || isSavingStep
-                        "
-                        class="w-full sm:w-auto"
-                        @click="goNext"
+                    <div
+                        class="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3 sm:justify-end"
                     >
-                        <span class="sr-only">Lanjut</span>
-                        <Spinner v-if="isSavingStep" />
-                        <ArrowRight v-else class="w-4 h-4" />
-                    </Button>
+                        <Button
+                            v-if="!isReadOnly && langkahAktif <= totalLangkah"
+                            variant="outline"
+                            class="w-full sm:w-auto"
+                            :disabled="!isLangkahValid || isSavingStep"
+                            @click="simpanDraft"
+                        >
+                            <Spinner v-if="isSavingStep" class="h-4 w-4" />
+                            <span v-else>Simpan Draft</span>
+                        </Button>
 
-                    <Button
-                        v-else-if="!isReadOnly"
-                        :disabled="!isLangkahValid || isSubmitting"
-                        class="w-full sm:w-auto"
-                        @click="submit"
-                    >
-                        <Spinner v-if="isSubmitting" class="mr-2" />
-                        {{
-                            isSubmitting
-                                ? "Menyimpan"
-                                : isEditMode
-                                  ? "Simpan Perubahan"
-                                  : "Daftarkan Karya"
-                        }}
-                    </Button>
+                        <Button
+                            v-if="langkahAktif < totalLangkah"
+                            :disabled="
+                                (!isReadOnly && !isLangkahValid) || isSavingStep
+                            "
+                            class="w-full sm:w-auto"
+                            @click="goNext"
+                        >
+                            <template v-if="isSavingStep">
+                                <Spinner />
+                            </template>
+                            <template v-else>
+                                <span>Lanjut</span>
+                                <ArrowRight class="w-4 h-4" />
+                            </template>
+                        </Button>
+
+                        <Button
+                            v-else-if="!isReadOnly"
+                            :disabled="!isLangkahValid || isSubmitting"
+                            class="w-full sm:w-auto"
+                            @click="submit"
+                        >
+                            <Spinner v-if="isSubmitting" class="h-4 w-4" />
+                            <span v-else>Kirim</span>
+                        </Button>
+                    </div>
                 </CardFooter>
             </CardContent>
         </Card>

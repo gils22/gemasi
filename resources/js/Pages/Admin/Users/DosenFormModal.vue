@@ -191,8 +191,8 @@ const submit = () => {
                         Tutup
                     </Button>
                     <Button v-if="!props.readonly" type="submit" :disabled="form.processing">
-                        <Spinner v-if="form.processing" class="mr-2" />
-                        {{ props.dosen?.id ? "Simpan" : "Tambah" }}
+                        <Spinner v-if="form.processing" class="h-4 w-4" />
+                        <span v-else>{{ props.dosen?.id ? "Simpan" : "Tambah" }}</span>
                     </Button>
                 </DialogFooter>
             </form>

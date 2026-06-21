@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowLeft } from "lucide-vue-next";
+import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-vue-next";
 import type { PageProps } from "@/types/inertia";
 
 type KriteriaRow = {
     nama: string;
     bobot: number;
     nilai: number;
+    deskripsi?: string;
 };
 
 type Karya = {
@@ -24,6 +25,26 @@ type Karya = {
         name: string | null;
         email: string | null;
     };
+    wa_ketua?: string | null;
+    dosen_pembimbing?: {
+        nik?: string | null;
+        nama?: string | null;
+        email?: string | null;
+        bidang?: string | null;
+    } | null;
+    proposal_link?: string | null;
+    anggota_tim?: Array<{
+        nama?: string | null;
+        nim?: string | null;
+        email?: string | null;
+        peran?: string | null;
+    }>;
+    lampiran?: Array<{
+        id?: number;
+        nama_asli?: string | null;
+        deskripsi?: string | null;
+        url?: string | null;
+    }>;
 };
 
 const page = usePage<
@@ -49,12 +70,14 @@ const isPrivileged = computed(() => role.value === "admin");
 const routePrefix = computed(() => (isPrivileged.value ? "/admin" : "/juri"));
 const juriOptions = computed(() => page.props.juriOptions ?? []);
 const selectedJuriId = ref<number | null>(page.props.selectedJuriId ?? null);
+const infoTerbuka = ref(false);
 
 const rows = ref<KriteriaRow[]>(
     (page.props.kriteria ?? []).map((item) => ({
         nama: item.nama,
         bobot: Number(item.bobot ?? 0),
         nilai: Number(item.nilai ?? 0),
+        deskripsi: item.deskripsi ?? "",
     })),
 );
 const catatan = ref<string>(page.props.catatan ?? "");
@@ -75,12 +98,17 @@ const backToNominasi = () => {
 const simpan = () => {
     const invalid = rows.value.some(
         (item) =>
+            item.nilai === null ||
+            item.nilai === undefined ||
+            item.nilai === "" ||
             item.nilai < 0 ||
             item.nilai > 100 ||
             Number.isNaN(Number(item.nilai)),
     );
     if (invalid) {
-        toast.error("Nilai tiap kriteria harus di antara 0 sampai 100.");
+        toast.error(
+            "Nilai tiap kriteria wajib diisi dan harus di antara 0 sampai 100.",
+        );
         return;
     }
 
@@ -99,7 +127,10 @@ const simpan = () => {
         },
         {
             preserveScroll: true,
-            onSuccess: () => toast.success("Nilai berhasil disimpan."),
+            onSuccess: () => {
+                toast.success("Nilai berhasil disimpan.");
+                backToNominasi();
+            },
             onError: () => toast.error("Gagal menyimpan nilai."),
             onFinish: () => (submitting.value = false),
         },
@@ -122,6 +153,7 @@ watch(
             nama: item.nama,
             bobot: Number(item.bobot ?? 0),
             nilai: Number(item.nilai ?? 0),
+            deskripsi: item.deskripsi ?? "",
         }));
         catatan.value = page.props.catatan ?? "";
     },
@@ -189,6 +221,141 @@ defineOptions({
                 </div>
             </CardHeader>
             <CardContent class="space-y-4">
+                <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <div
+                        class="flex flex-wrap items-center justify-between gap-3"
+                    >
+                        <div>
+                            <p class="text-sm font-semibold text-slate-900">
+                                Informasi Karya Pendaftaran
+                            </p>
+                            <p class="text-xs text-slate-500">
+                                Klik untuk melihat data yang dikirim peserta
+                                saat pendaftaran.
+                            </p>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            class="gap-2"
+                            @click="infoTerbuka = !infoTerbuka"
+                        >
+                            {{ infoTerbuka ? "Tutup Info" : "Lihat Info" }}
+                            <component
+                                :is="infoTerbuka ? ChevronUp : ChevronDown"
+                                class="h-4 w-4"
+                            />
+                        </Button>
+                    </div>
+
+                    <div v-if="infoTerbuka" class="mt-4 space-y-3">
+                        <div class="grid gap-3 md:grid-cols-2">
+                            <div
+                                class="rounded-md border border-white bg-white p-3"
+                            >
+                                <p class="text-xs text-slate-500">
+                                    Dosen Pembimbing
+                                </p>
+                                <p
+                                    class="mt-1 text-sm font-medium text-slate-900"
+                                >
+                                    {{
+                                        page.props.karya.dosen_pembimbing
+                                            ?.nama ?? "-"
+                                    }}
+                                </p>
+                                <p class="text-xs text-slate-500">
+                                    {{
+                                        page.props.karya.dosen_pembimbing
+                                            ?.email ?? "-"
+                                    }}
+                                </p>
+                            </div>
+                            <div
+                                class="rounded-md border border-white bg-white p-3"
+                            >
+                                <p class="text-xs text-slate-500">Proposal</p>
+                                <a
+                                    v-if="page.props.karya.proposal_link"
+                                    :href="page.props.karya.proposal_link"
+                                    target="_blank"
+                                    class="mt-1 block text-sm font-medium text-indigo-600 hover:underline"
+                                >
+                                    Buka proposal
+                                </a>
+                                <p v-else class="mt-1 text-sm text-slate-900">
+                                    -
+                                </p>
+                            </div>
+                        </div>
+
+                        <div
+                            class="rounded-md border border-white bg-white p-3"
+                        >
+                            <p class="text-xs text-slate-500">Anggota Tim</p>
+                            <div
+                                v-if="page.props.karya.anggota_tim?.length"
+                                class="mt-2 space-y-2"
+                            >
+                                <div
+                                    v-for="(anggota, idx) in page.props.karya
+                                        .anggota_tim"
+                                    :key="`${anggota.email ?? anggota.nama ?? idx}`"
+                                    class="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2"
+                                >
+                                    <div>
+                                        <p
+                                            class="text-sm font-medium text-slate-900"
+                                        >
+                                            {{ anggota.nama ?? "-" }}
+                                        </p>
+                                        <p class="text-xs text-slate-500">
+                                            NIM: {{ anggota.nim ?? "-" }}
+                                        </p>
+                                    </div>
+                                    <span
+                                        class="text-xs font-medium text-slate-600"
+                                    >
+                                        {{
+                                            anggota.peran === "ketua"
+                                                ? "Ketua"
+                                                : "Anggota"
+                                        }}
+                                    </span>
+                                </div>
+                            </div>
+                            <p v-else class="mt-2 text-sm text-slate-500">
+                                Belum ada anggota tim.
+                            </p>
+                        </div>
+
+                        <div
+                            class="rounded-md border border-white bg-white p-3"
+                        >
+                            <p class="text-xs text-slate-500">Lampiran</p>
+                            <div
+                                v-if="page.props.karya.lampiran?.length"
+                                class="mt-2 space-y-2"
+                            >
+                                <a
+                                    v-for="lampiran in page.props.karya
+                                        .lampiran"
+                                    :key="lampiran.id"
+                                    :href="lampiran.url ?? '#'"
+                                    target="_blank"
+                                    class="block rounded-md border border-slate-200 px-3 py-2 text-sm text-indigo-600 hover:bg-slate-50"
+                                >
+                                    {{ lampiran.nama_asli ?? "Lampiran" }}
+                                </a>
+                            </div>
+                            <p v-else class="mt-2 text-sm text-slate-500">
+                                Belum ada lampiran.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="hidden md:block overflow-x-auto rounded-lg border">
                     <table class="w-full min-w-[720px] text-sm">
                         <thead class="bg-slate-50 text-slate-700">
@@ -212,7 +379,13 @@ defineOptions({
                                 <td
                                     class="px-3 py-2 font-medium text-slate-800"
                                 >
-                                    {{ item.nama }}
+                                    <div>{{ item.nama }}</div>
+                                    <div
+                                        v-if="item.deskripsi"
+                                        class="mt-1 text-xs font-normal text-slate-500"
+                                    >
+                                        {{ item.deskripsi }}
+                                    </div>
                                 </td>
                                 <td class="px-3 py-2 text-slate-700">
                                     {{ item.bobot }}
@@ -224,6 +397,7 @@ defineOptions({
                                         min="0"
                                         max="100"
                                         step="0.01"
+                                        required
                                         class="h-9 w-28"
                                     />
                                 </td>
@@ -250,6 +424,12 @@ defineOptions({
                             <div>
                                 <p class="text-sm font-semibold text-slate-900">
                                     {{ item.nama }}
+                                </p>
+                                <p
+                                    v-if="item.deskripsi"
+                                    class="mt-1 text-xs leading-relaxed text-slate-500"
+                                >
+                                    {{ item.deskripsi }}
                                 </p>
                                 <p class="text-xs text-slate-500">
                                     Bobot: {{ item.bobot }}%
@@ -280,6 +460,7 @@ defineOptions({
                                 min="0"
                                 max="100"
                                 step="0.01"
+                                required
                                 class="mt-1 h-10 w-full"
                             />
                         </div>
@@ -310,7 +491,7 @@ defineOptions({
                         @click="simpan"
                     >
                         <Spinner v-if="submitting" class="h-4 w-4" />
-                        <span>Simpan Nilai</span>
+                        <span v-else>Simpan Nilai</span>
                     </Button>
                 </div>
             </CardContent>

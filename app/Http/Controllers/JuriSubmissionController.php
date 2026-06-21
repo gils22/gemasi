@@ -48,6 +48,31 @@ class JuriSubmissionController extends Controller
             ->all();
     }
 
+    private function assignedStageOptions(Request $request, int $edisiId): array
+    {
+        $juriId = (int) $request->user()->id;
+        $hasStage1 = PenugasanJuriKategori::query()
+            ->where('edisi_lomba_id', $edisiId)
+            ->where('juri_id', $juriId)
+            ->whereIn('tahap', ['tahap_1', 'tahap_1_2'])
+            ->exists();
+        $hasStage2 = PenugasanJuriKategori::query()
+            ->where('edisi_lomba_id', $edisiId)
+            ->where('juri_id', $juriId)
+            ->whereIn('tahap', ['tahap_2', 'tahap_1_2'])
+            ->exists();
+
+        $stageOptions = [];
+        if ($hasStage1) {
+            $stageOptions[] = ['value' => 'tahap_1', 'label' => 'Tahap 1'];
+        }
+        if ($hasStage2) {
+            $stageOptions[] = ['value' => 'tahap_2', 'label' => 'Tahap 2'];
+        }
+
+        return $stageOptions;
+    }
+
     private function transformSubmission(KaryaPeserta $item, string $prefix): array
     {
         return [
@@ -92,6 +117,7 @@ class JuriSubmissionController extends Controller
     {
         $edisi = $this->resolveEdisiKonteks($request);
         $kategoriIds = $this->assignedKategoriIds($request, (int) $edisi->id);
+        $stageOptions = $this->assignedStageOptions($request, (int) $edisi->id);
 
         $data = KaryaPeserta::query()
             ->with(['peserta:id,name,email,avatar', 'lampiran:id,karya_peserta_id'])
@@ -115,6 +141,7 @@ class JuriSubmissionController extends Controller
             'bolehNilaiTahap1' => true,
             'mode' => 'karya',
             'kategoriOptions' => [],
+            'stageOptions' => $stageOptions,
         ]);
     }
 
@@ -134,6 +161,7 @@ class JuriSubmissionController extends Controller
             'bolehKelola' => false,
             'bolehLoloskanNominasi' => true,
             'bolehNilaiTahap1' => true,
+            'stageOptions' => $this->assignedStageOptions($request, (int) $edisi->id),
         ]);
     }
 
@@ -190,7 +218,7 @@ class JuriSubmissionController extends Controller
         $karya->lolos_nominasi = true;
         $karya->save();
 
-        return redirect()->back()->with('success', 'Karya ditandai lolos nominasi.')->setStatusCode(303);
+        return redirect()->back()->with('success', 'Karya berhasil diloloskan ke nominasi.')->setStatusCode(303);
     }
 
     public function batalkanNominasi(Request $request, KaryaPeserta $karya)
@@ -204,6 +232,6 @@ class JuriSubmissionController extends Controller
         $karya->lolos_nominasi = false;
         $karya->save();
 
-        return redirect()->back()->with('success', 'Status lolos nominasi dibatalkan.')->setStatusCode(303);
+        return redirect()->back()->with('success', 'Status lolos nominasi berhasil dibatalkan.')->setStatusCode(303);
     }
 }

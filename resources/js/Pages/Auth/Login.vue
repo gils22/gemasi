@@ -18,10 +18,18 @@ const errorMessage = computed(() => {
         ""
     );
 });
+const successMessage = computed(() => page.props.flash?.success || "");
 
 const toastShown = ref(false);
 onMounted(() => {
     if (toastShown.value) return;
+    const success = String(successMessage.value || "").trim();
+    if (success) {
+        toast.success(success);
+        toastShown.value = true;
+        return;
+    }
+
     const message = String(errorMessage.value || "").trim();
     if (!message) return;
     toast.error(message);
@@ -44,6 +52,13 @@ onMounted(() => {
                 class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
             >
                 {{ errorMessage }}
+            </p>
+
+            <p
+                v-else-if="successMessage"
+                class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+            >
+                {{ successMessage }}
             </p>
 
             <Button

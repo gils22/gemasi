@@ -14,6 +14,10 @@ class LandingSetting extends Model
         'hero_title',
         'hero_subtitle',
         'about_text',
+        'video_path',
+        'video_url',
+        'login_carousel_items',
+        'gallery_items',
         'cta_badge',
         'cta_label',
         'cta_url',
@@ -24,6 +28,8 @@ class LandingSetting extends Model
     {
         return [
             'faq_items' => 'array',
+            'login_carousel_items' => 'array',
+            'gallery_items' => 'array',
         ];
     }
 }

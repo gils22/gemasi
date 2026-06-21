@@ -27,6 +27,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 
 type Edisi = {
     id: number;
@@ -282,8 +283,12 @@ const submit = () => {
 
                 <DialogFooter>
                     <Button type="button" variant="outline" @click="emit('update:open', false)">Batal</Button>
-                    <Button type="submit" :disabled="form.processing || isFormInvalid">
-                        {{ form.processing ? "Menyimpan..." : "Simpan" }}
+                    <Button
+                        type="submit"
+                        :disabled="form.processing || isFormInvalid"
+                    >
+                        <Spinner v-if="form.processing" class="h-4 w-4" />
+                        <span v-else>Simpan</span>
                     </Button>
                 </DialogFooter>
             </form>

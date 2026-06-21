@@ -39,7 +39,6 @@ class AccountController extends Controller
         $file = $validated['avatar'];
         $path = $file->store('avatars', 'public');
 
-        // Hapus avatar lama jika tersimpan di storage lokal (bukan URL).
         $old = (string) ($user?->avatar ?? '');
         if ($old !== '' && !str_starts_with($old, 'http://') && !str_starts_with($old, 'https://')) {
             Storage::disk('public')->delete($old);

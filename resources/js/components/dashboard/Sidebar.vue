@@ -55,6 +55,10 @@ const normalizePath = (path: string) => {
 };
 
 const currentPath = computed(() => normalizePath(page.url));
+const currentQuery = computed(() => {
+    const url = new URL(page.url, window.location.origin);
+    return url.searchParams;
+});
 
 const roleFromPath = computed<RoleKey | "">(() => {
     if (currentPath.value.startsWith("/admin")) return "admin";
@@ -89,13 +93,36 @@ const isActive = (path: string) => currentPath.value === normalizePath(path);
 
 const isMenuActive = (path: string) => {
     const normalized = normalizePath(path);
+    if (
+        normalized === "/peserta/arsip" &&
+        currentPath.value === "/peserta/daftar-karya/form" &&
+        currentQuery.value.get("from") === "arsip"
+    ) {
+        return true;
+    }
+    if (
+        normalized === "/peserta/daftar-karya" &&
+        currentPath.value === "/peserta/daftar-karya/form" &&
+        currentQuery.value.get("from") === "arsip"
+    ) {
+        return false;
+    }
     if (currentPath.value === normalized) return true;
 
-    // Prevent root role dashboard path (e.g. /peserta) from matching all children.
-    const depth = normalized.split("/").filter(Boolean).length;
-    if (depth <= 1) return false;
+    const currentSegments = currentPath.value.split("/").filter(Boolean);
+    const targetSegments = normalized.split("/").filter(Boolean);
 
-    return currentPath.value.startsWith(`${normalized}/`);
+    if (targetSegments.length === 0) return false;
+    if (targetSegments.length === 1) return false;
+    if (currentSegments.length < targetSegments.length) return false;
+
+    const samePrefix = targetSegments.every(
+        (segment, index) => currentSegments[index] === segment,
+    );
+
+    if (!samePrefix) return false;
+
+    return true;
 };
 
 const isChildActive = (children: NonNullable<MenuItem["children"]>) =>
@@ -111,6 +138,10 @@ const openCollapsedMenu = ref<string | null>(null);
 watch(
     [menus, currentPath],
     () => {
+        openMenus.value = openMenus.value.filter((label) =>
+            menus.value.some((menu) => menu.label === label),
+        );
+
         menus.value.forEach((menu) => {
             const children = menu.children ?? [];
             if (
@@ -155,6 +186,7 @@ watch(
 /* -------------------------------------------------------------------------- */
 
 const isCollapsed = computed(() => props.collapsed && !props.isMobile);
+const isDashboardMenu = (menu: MenuItem) => menu.label === "Dashboard";
 const dividerBefore = new Set([
     "Edisi Tahun",
     "Submission",
@@ -193,7 +225,7 @@ const linkClass = (path: string) => [
     "relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-150",
     isCollapsed.value ? "justify-center px-2 py-2.5" : "px-3 py-2.5",
     isMenuActive(path)
-        ? "bg-blue-50 text-blue-700"
+        ? "bg-indigo-50 text-indigo-700"
         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
 ];
 
@@ -294,13 +326,13 @@ const isParentActive = (menu: MenuItem) => {
                                             :class="[
                                                 'relative w-full flex items-center justify-center rounded-lg text-sm font-medium transition-all duration-200 px-2 py-2.5',
                                                 isParentActive(menu)
-                                                    ? 'bg-blue-50 text-blue-700'
+                                                    ? 'bg-indigo-50 text-indigo-700'
                                                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
                                             ]"
                                         >
                                             <span
                                                 v-if="isParentActive(menu)"
-                                                class="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-blue-600"
+                                                class="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-indigo-600"
                                             />
                                             <component
                                                 :is="menu.icon"
@@ -338,13 +370,13 @@ const isParentActive = (menu: MenuItem) => {
                                                     "
                                                 >
                                                     <span
-                                                        :class="[
+                                                    :class="[
                                                             'h-1.5 w-1.5 rounded-full absolute left-3 top-1/2 -translate-y-1/2',
                                                             isMenuActive(
                                                                 child.href,
                                                             )
-                                                                ? 'bg-blue-600'
-                                                                : 'bg-slate-300 group-hover:bg-blue-500',
+                                                                ? 'bg-indigo-600'
+                                                                : 'bg-slate-300 group-hover:bg-indigo-500',
                                                         ]"
                                                     />
                                                     <span
@@ -352,7 +384,7 @@ const isParentActive = (menu: MenuItem) => {
                                                             isMenuActive(
                                                                 child.href,
                                                             )
-                                                                ? 'text-blue-700 font-medium'
+                                                                ? 'text-indigo-700 font-medium'
                                                                 : '',
                                                         ]"
                                                     >
@@ -376,13 +408,13 @@ const isParentActive = (menu: MenuItem) => {
                                                 ? 'px-2 py-2.5 justify-center'
                                                 : 'px-3 py-2.5',
                                             isParentActive(menu)
-                                                ? 'bg-blue-50 text-blue-700'
+                                                ? 'bg-indigo-50 text-indigo-700'
                                                 : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
                                         ]"
                                     >
                                         <span
                                             v-if="isParentActive(menu)"
-                                            class="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-blue-600"
+                                            class="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-indigo-600"
                                         />
 
                                         <div
@@ -450,7 +482,7 @@ const isParentActive = (menu: MenuItem) => {
                                             linkClass(child.href),
                                             'text-[13px] py-2 relative pl-6',
                                             isMenuActive(child.href)
-                                                ? 'bg-blue-50 text-blue-700'
+                                                ? 'bg-indigo-50 text-indigo-700'
                                                 : '',
                                         ]"
                                         @click="
@@ -461,7 +493,7 @@ const isParentActive = (menu: MenuItem) => {
                                             :class="[
                                                 'absolute left-3 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full',
                                                 isMenuActive(child.href)
-                                                    ? 'bg-blue-600'
+                                                    ? 'bg-indigo-600'
                                                     : 'bg-slate-300',
                                             ]"
                                         />
@@ -478,16 +510,28 @@ const isParentActive = (menu: MenuItem) => {
                             <TooltipTrigger as-child>
                                 <Link
                                     :href="menu.href"
-                                    :class="linkClass(menu.href)"
+                                    :class="[
+                                        linkClass(menu.href),
+                                        isDashboardMenu(menu) &&
+                                        currentPath === normalizePath(menu.href)
+                                            ? 'text-indigo-700 hover:bg-indigo-50 hover:text-indigo-700'
+                                            : '',
+                                    ]"
                                     @click="isMobile && emit('close-mobile')"
                                 >
                                     <span
                                         v-if="isMenuActive(menu.href)"
-                                        class="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-blue-600"
+                                        class="absolute left-0 top-1 bottom-1 w-1 rounded-r bg-indigo-600"
                                     />
                                     <component
                                         :is="menu.icon"
-                                        class="w-5 h-5"
+                                        :class="[
+                                        'w-5 h-5',
+                                            isDashboardMenu(menu) &&
+                                            currentPath === normalizePath(menu.href)
+                                                ? 'text-indigo-600'
+                                                : '',
+                                    ]"
                                     />
 
                                     <span v-if="!collapsed || isMobile">

@@ -22,6 +22,10 @@ const quickLinks = [
         href: "/nominate",
     },
     {
+        label: "Gallery",
+        href: "/gallery",
+    },
+    {
         label: "Juara",
         href: "/juara",
     },
@@ -76,6 +80,12 @@ const quickLinks = [
                             class="font-semibold hover:underline hover:underline-offset-4 decoration-1 decoration-slate-900 transition"
                         >
                             Juara
+                        </Link>
+                        <Link
+                            href="/gallery"
+                            class="font-semibold hover:underline hover:underline-offset-4 decoration-1 decoration-slate-900 transition"
+                        >
+                            Gallery
                         </Link>
                     </nav>
 
@@ -151,15 +161,15 @@ const quickLinks = [
                                             borderRadius="12px"
                                             className="border-transparent w-full"
                                         >
-                                            <Button
-                                                as-child
-                                                variant="ghost"
-                                                class="w-full max-w-sm sm:max-w-md justify-center rounded-lg text-slate-700 hover:bg-white/70 hover:text-slate-900"
-                                            >
-                                                <Link :href="item.href">
-                                                    {{ item.label }}
-                                                </Link>
-                                            </Button>
+                                        <Button
+                                            as-child
+                                            variant="ghost"
+                                            class="w-full max-w-sm sm:max-w-md justify-center rounded-lg text-slate-700 hover:bg-white/70 hover:text-slate-900"
+                                        >
+                                            <Link :href="item.href">
+                                                {{ item.label }}
+                                            </Link>
+                                        </Button>
                                         </GlareHover>
                                         <GlareHover
                                             width="100%"

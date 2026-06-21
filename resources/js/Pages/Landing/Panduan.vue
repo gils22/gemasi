@@ -11,7 +11,8 @@ type LandingKategori = {
     nama: string;
     slug?: string | null;
     deskripsi?: string | null;
-    weights?: Array<{ label: string; point: number }>;
+    icon_url?: string | null;
+    weights?: Array<{ label: string; point: number; description?: string }>;
 };
 
 type TemplateProposal = {

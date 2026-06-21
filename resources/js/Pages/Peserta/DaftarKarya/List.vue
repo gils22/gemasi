@@ -42,6 +42,7 @@ type KaryaItem = {
     updated_at: string | null;
     edisi: string | null;
     dapat_dikelola: boolean;
+    peran_akses?: "ketua" | "anggota";
 };
 
 defineOptions({
@@ -127,13 +128,13 @@ const pulihkan = (item: KaryaItem) => {
         <div
             class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
         >
-            <div class="space-y-1">
-                <h1 class="text-xl font-semibold text-slate-800">
+            <div class="">
+                <h1 class="text-lg font-semibold text-slate-800">
                     Karya Terdaftar
                 </h1>
-                <span class="text-sm font-medium text-slate-600">
+                <p class="text-xs text-slate-600">
                     {{ gemasiAktifLabel }}
-                </span>
+                </p>
             </div>
             <Button v-if="pendaftaranDibuka" as-child>
                 <Link href="/peserta/daftar-karya/form?baru=1">
@@ -141,17 +142,12 @@ const pulihkan = (item: KaryaItem) => {
                     Tambah Karya Baru
                 </Link>
             </Button>
-            <Button v-else type="button" disabled>
-                <Plus class="h-4 w-4" />
-                Tambah Karya Baru
-            </Button>
-        </div>
-
-        <div
-            v-if="!pendaftaranDibuka"
-            class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-        >
-            Pendaftaran sudah ditutup.
+            <div
+                v-else
+                class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            >
+                Pendaftaran sudah ditutup.
+            </div>
         </div>
 
         <div
@@ -163,8 +159,8 @@ const pulihkan = (item: KaryaItem) => {
                 mulai.
             </span>
             <span v-else-if="punyaKaryaArsip">
-                Karya yang sudah pernah didaftarkan dapat dilihat di menu Arsip
-                atau ikon arsip di kanan bawah.
+                Karya yang pernah dihapus dari daftar akan tetap tersimpan di
+                arsip pendaftaran.
             </span>
             <span v-else> Belum ada karya yang terdaftar. </span>
         </div>
@@ -204,6 +200,18 @@ const pulihkan = (item: KaryaItem) => {
                     </Badge>
                 </div>
 
+                <div class="flex flex-wrap gap-2">
+                    <Badge
+                        :class="
+                            item.peran_akses === 'ketua'
+                                ? 'bg-indigo-50 text-indigo-700'
+                                : 'bg-slate-100 text-slate-700'
+                        "
+                    >
+                        {{ item.peran_akses === "ketua" ? "Ketua" : "Anggota" }}
+                    </Badge>
+                </div>
+
                 <div class="space-y-1 text-sm text-slate-600">
                     <div class="inline-flex items-center gap-1">
                         <Users class="h-4 w-4 text-slate-500" />
@@ -219,10 +227,7 @@ const pulihkan = (item: KaryaItem) => {
                     </div>
                 </div>
 
-                <div
-                    v-if="item.dapat_dikelola"
-                    class="mt-auto flex flex-wrap gap-2"
-                >
+                <div class="mt-auto flex flex-wrap gap-2">
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger as-child>
@@ -235,10 +240,16 @@ const pulihkan = (item: KaryaItem) => {
                                     <Eye class="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Lihat / Edit</TooltipContent>
+                            <TooltipContent>
+                                {{
+                                    item.dapat_dikelola
+                                        ? "Lihat / Edit"
+                                        : "Lihat"
+                                }}
+                            </TooltipContent>
                         </Tooltip>
 
-                        <Tooltip>
+                        <Tooltip v-if="item.dapat_dikelola">
                             <TooltipTrigger as-child>
                                 <Button
                                     type="button"
@@ -334,12 +345,9 @@ const pulihkan = (item: KaryaItem) => {
                             </div>
                         </div>
 
-                        <div
-                            v-if="item.dapat_dikelola"
-                            class="mt-auto flex flex-wrap gap-2"
-                        >
+                        <div class="mt-auto flex flex-wrap gap-2">
                             <TooltipProvider>
-                                <Tooltip>
+                                <Tooltip v-if="item.dapat_dikelola">
                                     <TooltipTrigger as-child>
                                         <Button
                                             type="button"
@@ -351,6 +359,19 @@ const pulihkan = (item: KaryaItem) => {
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>Pulihkan</TooltipContent>
+                                </Tooltip>
+                                <Tooltip v-else>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon-sm"
+                                            @click="bukaFormEdit(item.id)"
+                                        >
+                                            <Eye class="h-4 w-4" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Lihat</TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
                         </div>

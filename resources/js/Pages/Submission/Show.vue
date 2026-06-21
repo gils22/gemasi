@@ -26,13 +26,6 @@ import {
 } from "@/components/ui/dialog";
 import type { PageProps } from "@/types/inertia";
 
-type Lampiran = {
-    id: number;
-    nama: string;
-    deskripsi: string | null;
-    url: string;
-};
-
 type Submission = {
     id: number;
     nama_karya: string;
@@ -64,7 +57,6 @@ type Submission = {
         email: string | null;
         avatar: string | null;
     };
-    lampiran: Lampiran[];
 };
 
 const page = usePage<
@@ -74,6 +66,7 @@ const page = usePage<
         bolehKelola: boolean;
         bolehNilaiTahap1?: boolean;
         bolehLoloskanNominasi?: boolean;
+        stageOptions?: Array<{ value: "tahap_1" | "tahap_2"; label: string }>;
     }
 >();
 const submission = computed(() => page.props.submission);
@@ -84,14 +77,18 @@ const bolehNilaiTahap1 = computed(
 const bolehLoloskanNominasi = computed(
     () => page.props.bolehLoloskanNominasi === true || bolehKelola.value,
 );
-const tabAktif = ref<"ringkasan" | "tim" | "lampiran">("ringkasan");
-const daftarTab = ["ringkasan", "tim", "lampiran"] as const;
+const tabAktif = ref<"ringkasan" | "tim">("ringkasan");
+const daftarTab = ["ringkasan", "tim"] as const;
+const tabStorageKey = computed(
+    () => `submission-detail-tab:${submission.value.id}`,
+);
 
 const role = computed(() => page.props.auth?.role ?? "admin");
 const isPrivileged = computed(() => role.value === "admin");
 const routePrefix = computed(() =>
     role.value === "juri" ? "/juri" : "/admin",
 );
+const stageOptions = computed(() => page.props.stageOptions ?? []);
 const nilaiTahap1 = ref<number | null>(null);
 const catatanTahap1 = ref("");
 const isSavingNilai = ref(false);
@@ -113,6 +110,12 @@ const resetDraftAnggota = () => {
 const backToList = () => {
     const params = new URLSearchParams(window.location.search);
     const from = params.get("from");
+    if (role.value === "juri" && stageOptions.value.length > 1) {
+        router.get(`${routePrefix.value}/penjurian/nominasi`, {
+            stage: "tahap_1",
+        });
+        return;
+    }
     if (from === "nominasi") {
         router.get(`${routePrefix.value}/submission/nominasi`);
         return;
@@ -121,24 +124,29 @@ const backToList = () => {
     router.get(`${routePrefix.value}/submission/karya`);
 };
 
+const nominasiButtonLabel = computed(() =>
+    submission.value.is_lolos_nominasi
+        ? "Batalkan Nominasi"
+        : "Loloskan Nominasi",
+);
+
+const nominasiButtonIcon = computed(() =>
+    submission.value.is_lolos_nominasi ? RotateCcw : CheckCircle2,
+);
+
 const toggleNominasi = () => {
     if (!bolehLoloskanNominasi.value) return;
-    if (
-        !submission.value.is_lolos_nominasi &&
-        submission.value.status !== "submitted"
-    ) {
+    const akanDibatalkan = submission.value.is_lolos_nominasi;
+    if (!akanDibatalkan && submission.value.status !== "submitted") {
         toast.error("Hanya submission lengkap yang bisa diloloskan.");
         return;
     }
-    if (
-        !submission.value.is_lolos_nominasi &&
-        submission.value.nilai_tahap_1 === null
-    ) {
+    if (!akanDibatalkan && submission.value.nilai_tahap_1 === null) {
         toast.error("Nilai tahap 1 belum diisi.");
         return;
     }
 
-    const endpoint = submission.value.is_lolos_nominasi
+    const endpoint = akanDibatalkan
         ? `${routePrefix.value}/submission/${submission.value.id}/batalkan-nominasi`
         : `${routePrefix.value}/submission/${submission.value.id}/lolos-nominasi`;
 
@@ -150,9 +158,9 @@ const toggleNominasi = () => {
             preserveState: true,
             onSuccess: () => {
                 toast.success(
-                    submission.value.is_lolos_nominasi
+                    akanDibatalkan
                         ? "Nominasi dibatalkan."
-                        : "Karya ditandai lolos nominasi.",
+                        : "Karya berhasil diloloskan ke nominasi.",
                 );
             },
             onError: () => {
@@ -165,6 +173,11 @@ const toggleNominasi = () => {
 onMounted(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
+    const savedTab = window.localStorage.getItem(tabStorageKey.value);
+    if (savedTab && (daftarTab as readonly string[]).includes(savedTab)) {
+        tabAktif.value = savedTab as typeof tabAktif.value;
+        return;
+    }
     if (tab && (daftarTab as readonly string[]).includes(tab)) {
         tabAktif.value = tab as typeof tabAktif.value;
     }
@@ -174,6 +187,7 @@ watch(tabAktif, (val) => {
     const url = new URL(window.location.href);
     url.searchParams.set("tab", val);
     window.history.replaceState({}, "", url.toString());
+    window.localStorage.setItem(tabStorageKey.value, val);
 });
 
 watch(
@@ -193,6 +207,19 @@ watch(openEditTim, (val) => {
 
 const simpanNilaiTahap1 = () => {
     if (!bolehNilaiTahap1.value) return;
+    if (
+        nilaiTahap1.value === null ||
+        nilaiTahap1.value === undefined ||
+        nilaiTahap1.value === "" ||
+        Number.isNaN(Number(nilaiTahap1.value))
+    ) {
+        toast.error("Nilai tahap 1 wajib diisi.");
+        return;
+    }
+    if (Number(nilaiTahap1.value) < 0 || Number(nilaiTahap1.value) > 100) {
+        toast.error("Nilai tahap 1 harus di antara 0 sampai 100.");
+        return;
+    }
     isSavingNilai.value = true;
     router.patch(
         `${routePrefix.value}/submission/${submission.value.id}/nilai-tahap-1`,
@@ -204,6 +231,7 @@ const simpanNilaiTahap1 = () => {
             preserveScroll: true,
             onSuccess: () => {
                 toast.success("Nilai tahap 1 tersimpan.");
+                backToList();
             },
             onError: () => {
                 toast.error("Gagal menyimpan nilai tahap 1.");
@@ -276,6 +304,11 @@ defineOptions({
                     v-if="bolehLoloskanNominasi"
                     variant="outline"
                     size="sm"
+                    :class="
+                        submission.is_lolos_nominasi
+                            ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    "
                     :disabled="
                         !submission.is_lolos_nominasi &&
                         (submission.status !== 'submitted' ||
@@ -283,16 +316,8 @@ defineOptions({
                     "
                     @click="toggleNominasi"
                 >
-                    <RotateCcw
-                        v-if="submission.is_lolos_nominasi"
-                        class="h-4 w-4"
-                    />
-                    <CheckCircle2 v-else class="h-4 w-4" />
-                    {{
-                        submission.is_lolos_nominasi
-                            ? "Batalkan Nominasi"
-                            : "Lolos Nominasi"
-                    }}
+                    <component :is="nominasiButtonIcon" class="h-4 w-4" />
+                    {{ nominasiButtonLabel }}
                 </Button>
             </div>
             <h1 class="mt-3 text-xl font-semibold text-slate-900">
@@ -304,10 +329,10 @@ defineOptions({
         <div class="flex flex-wrap gap-2">
             <button
                 type="button"
-                class="rounded-lg border px-3 py-2 text-sm font-medium"
+                class="rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200"
                 :class="
                     tabAktif === 'ringkasan'
-                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm'
                         : 'border-slate-200 bg-white text-slate-600'
                 "
                 @click="tabAktif = 'ringkasan'"
@@ -316,27 +341,15 @@ defineOptions({
             </button>
             <button
                 type="button"
-                class="rounded-lg border px-3 py-2 text-sm font-medium"
+                class="rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200"
                 :class="
                     tabAktif === 'tim'
-                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm'
                         : 'border-slate-200 bg-white text-slate-600'
                 "
                 @click="tabAktif = 'tim'"
             >
                 Tim
-            </button>
-            <button
-                type="button"
-                class="rounded-lg border px-3 py-2 text-sm font-medium"
-                :class="
-                    tabAktif === 'lampiran'
-                        ? 'border-blue-200 bg-blue-50 text-blue-700'
-                        : 'border-slate-200 bg-white text-slate-600'
-                "
-                @click="tabAktif = 'lampiran'"
-            >
-                Lampiran
             </button>
         </div>
 
@@ -379,48 +392,54 @@ defineOptions({
                     Update: {{ submission.updated_at ?? "-" }}
                 </p>
             </div>
-            <div class="rounded-lg border bg-white p-4 md:col-span-2 space-y-2">
+            <div class="rounded-lg border bg-white p-4 md:col-span-2 space-y-3">
                 <p class="text-xs text-slate-500">Link Karya</p>
-                <p class="text-sm">
-                    Proposal:
-                    <a
-                        v-if="submission.proposal_path"
-                        :href="submission.proposal_path"
-                        target="_blank"
-                        class="text-blue-600 hover:underline break-all"
-                        >{{ submission.proposal_path }}</a
+                <div class="grid gap-3 md:grid-cols-2">
+                    <div
+                        class="rounded-md border border-slate-100 bg-slate-50 p-3"
                     >
-                    <span v-else>-</span>
-                </p>
-                <div class="text-sm space-y-1">
-                    <p class="text-slate-800">Link tambahan:</p>
-                    <ul
-                        v-if="submission.link_tambahan?.length"
-                        class="space-y-1"
-                    >
-                        <li
-                            v-for="(item, idx) in submission.link_tambahan"
-                            :key="idx"
+                        <p class="text-xs text-slate-500">Proposal</p>
+                        <a
+                            v-if="submission.proposal_path"
+                            :href="submission.proposal_path"
+                            target="_blank"
+                            class="break-all text-sm font-medium text-blue-600 hover:underline"
                         >
-                            <a
-                                v-if="item.url"
-                                :href="item.url"
-                                target="_blank"
-                                class="text-blue-600 hover:underline break-all"
+                            {{ submission.proposal_path }}
+                        </a>
+                        <p v-else class="text-sm text-slate-500">-</p>
+                    </div>
+                    <div
+                        class="rounded-md border border-slate-100 bg-slate-50 p-3"
+                    >
+                        <p class="text-xs text-slate-500">Link Lampiran</p>
+                        <div
+                            v-if="submission.link_tambahan?.length"
+                            class="space-y-2"
+                        >
+                            <template
+                                v-for="(item, idx) in submission.link_tambahan"
+                                :key="idx"
                             >
-                                {{ item.label || item.url }}
-                            </a>
-                            <span v-else>-</span>
-                        </li>
-                    </ul>
-                    <p v-else class="text-slate-500">-</p>
+                                <a
+                                    v-if="item.url"
+                                    :href="item.url"
+                                    target="_blank"
+                                    class="block break-all text-sm font-medium text-blue-600 hover:underline"
+                                >
+                                    {{ item.label || item.url }}
+                                </a>
+                            </template>
+                        </div>
+                        <p v-else class="text-sm text-slate-500">-</p>
+                    </div>
                 </div>
             </div>
 
-        <div
-            v-if="bolehNilaiTahap1"
-            class="rounded-lg border bg-white p-4 md:col-span-2 space-y-3"
-        >
+            <div
+                v-if="bolehNilaiTahap1"
+                class="rounded-lg border bg-white p-4 md:col-span-2 space-y-3"
+            >
                 <div class="flex items-center justify-between">
                     <p class="text-sm font-semibold text-slate-800">
                         Penilaian Tahap 1
@@ -436,6 +455,7 @@ defineOptions({
                             min="0"
                             max="100"
                             placeholder="0 - 100"
+                            required
                         />
                     </div>
                     <div class="md:col-span-2">
@@ -456,8 +476,8 @@ defineOptions({
                         :disabled="isSavingNilai"
                         @click="simpanNilaiTahap1"
                     >
-                        <Spinner v-if="isSavingNilai" class="mr-2" />
-                        Simpan Nilai
+                        <Spinner v-if="isSavingNilai" class="h-4 w-4" />
+                        <span v-else>Simpan Nilai</span>
                     </Button>
                 </div>
             </div>
@@ -564,24 +584,6 @@ defineOptions({
             </div>
         </div>
 
-        <div v-else class="rounded-lg border bg-white p-4">
-            <p class="text-xs text-slate-500 mb-2">Lampiran</p>
-            <div v-if="submission.lampiran.length" class="space-y-2">
-                <a
-                    v-for="item in submission.lampiran"
-                    :key="item.id"
-                    :href="item.url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="block rounded-md border px-3 py-2 text-sm text-blue-700 hover:bg-slate-50"
-                >
-                    <p class="font-medium">{{ item.nama }}</p>
-                    <p class="text-slate-500">{{ item.deskripsi || "-" }}</p>
-                </a>
-            </div>
-            <p v-else class="text-sm text-slate-500">Tidak ada lampiran.</p>
-        </div>
-
         <Dialog v-model:open="openEditTim">
             <DialogContent class="sm:max-w-3xl">
                 <DialogHeader>
@@ -647,8 +649,8 @@ defineOptions({
                         :disabled="isSavingTim"
                         @click="simpanAnggota"
                     >
-                        <Spinner v-if="isSavingTim" class="mr-2" />
-                        Simpan Perubahan
+                        <Spinner v-if="isSavingTim" class="h-4 w-4" />
+                        <span v-else>Simpan Perubahan</span>
                     </Button>
                 </DialogFooter>
             </DialogContent>

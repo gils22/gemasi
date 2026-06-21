@@ -114,6 +114,6 @@ class JuaraController extends Controller
 
         $karya->save();
 
-        return redirect()->back()->with('success', 'Data juara berhasil disimpan.');
+        return redirect()->back()->with('success', 'Data juara berhasil diperbarui.');
     }
 }

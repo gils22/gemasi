@@ -13,6 +13,75 @@ use Inertia\Inertia;
 
 class SubmissionController extends Controller
 {
+    private function normalizeAnggotaTim(array $anggotaTim): array
+    {
+        return collect($anggotaTim)
+            ->map(function ($anggota, $index) {
+                $nama = trim((string) ($anggota['nama'] ?? ''));
+                $email = strtolower(trim((string) ($anggota['email'] ?? '')));
+                $peran = trim((string) ($anggota['peran'] ?? ''));
+                $nim = trim((string) ($anggota['nim'] ?? ''));
+
+                return [
+                    'nim' => $nim !== '' ? $nim : null,
+                    'nama' => $nama,
+                    'email' => $email !== '' ? $email : null,
+                    'peran' => $peran !== '' ? $peran : ($index === 0 ? 'ketua' : 'anggota'),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function validateAnggotaTim(array $anggotaTim): void
+    {
+        $anggota = collect($anggotaTim);
+
+        abort_unless($anggota->where('peran', 'ketua')->count() === 1, 422, 'Harus ada tepat satu ketua tim.');
+
+        $emails = $anggota->pluck('email')
+            ->filter()
+            ->map(fn ($email) => strtolower(trim((string) $email)));
+
+        abort_if($emails->duplicates()->isNotEmpty(), 422, 'Email anggota tim tidak boleh duplikat.');
+    }
+
+    private function normalizedEmail(?string $email): string
+    {
+        return strtolower(trim((string) $email));
+    }
+
+    private function isCurrentUserMemberOfKarya(KaryaPeserta $karya, ?string $email): bool
+    {
+        $email = $this->normalizedEmail($email);
+        if ($email === '') {
+            return false;
+        }
+
+        return collect($karya->anggota_tim ?? [])->contains(function ($anggota) use ($email) {
+            if (!is_array($anggota)) {
+                return false;
+            }
+
+            return $this->normalizedEmail($anggota['email'] ?? null) === $email;
+        });
+    }
+
+    private function canViewKarya(Request $request, KaryaPeserta $karya): bool
+    {
+        $user = $request->user();
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+
+        return (int) $karya->user_id === (int) $user->id
+            || $this->isCurrentUserMemberOfKarya($karya, $user->email);
+    }
+
     private function transformSubmission(KaryaPeserta $item, string $prefix): array
     {
         return [
@@ -101,6 +170,17 @@ class SubmissionController extends Controller
             $query->where('lolos_nominasi', true);
         }
 
+        $user = $request->user();
+        if ($user && !$user->hasRole('admin')) {
+            $query->where(function ($builder) use ($user) {
+                $builder->where('user_id', $user->id)
+                    ->orWhereRaw(
+                        "JSON_SEARCH(anggota_tim, 'one', ?, NULL, '$[*].email') IS NOT NULL",
+                        [$user->email],
+                    );
+            });
+        }
+
         $data = $query
             ->orderByDesc('updated_at')
             ->get()
@@ -165,7 +245,7 @@ class SubmissionController extends Controller
             'nama_kategori' => $kategori->nama,
             'nama_karya' => $validated['nama_karya'],
             'wa_ketua' => $validated['wa_ketua'] ?: '-',
-            'anggota_tim' => $validated['anggota_tim'],
+            'anggota_tim' => $this->normalizeAnggotaTim($validated['anggota_tim']),
             'pameran_ringkasan' => $validated['pameran_ringkasan'] ?? null,
             'pameran_link_video' => $validated['pameran_link_video'] ?? null,
             'status' => 'submitted',
@@ -179,8 +259,8 @@ class SubmissionController extends Controller
     public function show(Request $request, KaryaPeserta $karya)
     {
         $edisi = $this->resolveEdisiKonteks($request);
-        abort_unless($this->bolehKelola($request, (int) $edisi->id), 403);
         abort_if((int) $karya->edisi_lomba_id !== (int) $edisi->id, 404);
+        abort_unless($this->canViewKarya($request, $karya), 403);
 
         $prefix = (string) $request->segment(1);
         $karya->load(['peserta:id,name,email,avatar', 'lampiran:id,karya_peserta_id,nama_asli,deskripsi']);
@@ -188,7 +268,8 @@ class SubmissionController extends Controller
         return Inertia::render('Submission/Show', [
             'submission' => $this->transformSubmission($karya, $prefix),
             'gemasiAktifLabel' => optional($karya->edisi)->nama . ' (' . optional($karya->edisi)->tahun . ')',
-            'bolehKelola' => $this->bolehKelola($request, (int) $karya->edisi_lomba_id),
+            'bolehKelola' => $this->bolehKelola($request, (int) $karya->edisi_lomba_id)
+                && $request->user()->hasRole('admin'),
         ]);
     }
 
@@ -224,7 +305,8 @@ class SubmissionController extends Controller
             'anggota_tim.*.peran' => 'required|string|max:50',
         ]);
 
-        $karya->anggota_tim = $validated['anggota_tim'];
+        $this->validateAnggotaTim($validated['anggota_tim']);
+        $karya->anggota_tim = $this->normalizeAnggotaTim($validated['anggota_tim']);
         $karya->save();
 
         return redirect()->back()->with('success', 'Anggota tim berhasil diperbarui.');
@@ -290,7 +372,7 @@ class SubmissionController extends Controller
         $karya->lolos_nominasi = true;
         $karya->save();
 
-        return redirect()->back()->with('success', 'Karya ditandai lolos nominasi.');
+        return redirect()->back()->with('success', 'Karya berhasil diloloskan ke nominasi.');
     }
 
     public function batalkanNominasi(Request $request, KaryaPeserta $karya)
@@ -302,7 +384,7 @@ class SubmissionController extends Controller
         $karya->lolos_nominasi = false;
         $karya->save();
 
-        return redirect()->back()->with('success', 'Status lolos nominasi dibatalkan.');
+        return redirect()->back()->with('success', 'Status lolos nominasi berhasil dibatalkan.');
     }
 
     public function previewLampiran(Request $request, LampiranKaryaPeserta $lampiran)

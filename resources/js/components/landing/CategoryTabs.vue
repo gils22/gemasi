@@ -2,6 +2,12 @@
 import { computed, ref, watch } from "vue";
 import CategorySideTabs from "@/components/landing/CategorySideTabs.vue";
 import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
     Layers,
     LineChart,
     Cpu,
@@ -16,6 +22,7 @@ import {
 type WeightItem = {
     label: string;
     point: number;
+    description?: string;
 };
 
 type CategoryItem = {
@@ -24,6 +31,7 @@ type CategoryItem = {
     description: string;
     accent?: string;
     icon?: unknown;
+    icon_url?: string | null;
     weights?: WeightItem[];
 };
 
@@ -79,7 +87,7 @@ const categoriesWithIcons = computed(() =>
         const meta = getCategoryMeta(cat.name);
         return {
             ...cat,
-            icon: cat.icon ?? meta.icon,
+            icon: cat.icon ?? cat.icon_url ?? meta.icon,
             accent: cat.accent ?? meta.accent,
         };
     }),
@@ -176,18 +184,33 @@ watch(
                                     </span>
                                 </div>
                                 <div class="mt-4 space-y-2 text-sm text-slate-700">
-                                    <div
-                                        v-for="(row, idx) in activeCategory.weights"
-                                        :key="`${activeCategory.id}-weight-${idx}`"
-                                        class="flex items-center justify-between rounded-lg border border-slate-200 bg-white/70 px-3 py-2 sm:px-4"
+                                    <Accordion
+                                        type="multiple"
+                                        class="space-y-2"
                                     >
-                                        <span class="capitalize">
-                                            {{ row.label }}
-                                        </span>
-                                        <span class="font-semibold text-slate-900">
-                                            {{ row.point }}
-                                        </span>
-                                    </div>
+                                        <AccordionItem
+                                            v-for="(row, idx) in activeCategory.weights"
+                                            :key="`${activeCategory.id}-weight-${idx}`"
+                                            :value="`${activeCategory.id}-weight-${idx}`"
+                                            class="rounded-lg border border-slate-200 bg-white/70 px-3 sm:px-4 last:border-b"
+                                        >
+                                            <AccordionTrigger class="py-3 no-underline hover:no-underline">
+                                                <div class="flex w-full items-center justify-between gap-3 text-left">
+                                                    <span class="capitalize">
+                                                        {{ row.label }}
+                                                    </span>
+                                                    <span class="font-semibold text-slate-900">
+                                                        {{ row.point }}
+                                                    </span>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent class="pb-3">
+                                                <p class="text-xs leading-relaxed text-slate-500">
+                                                    {{ row.description }}
+                                                </p>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
                                 </div>
                             </div>
                         </slot>

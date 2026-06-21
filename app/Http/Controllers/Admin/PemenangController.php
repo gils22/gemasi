@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Edition;
 use App\Models\KaryaPeserta;
+use App\Models\PemenangFavorit;
 use App\Models\PemenangKarya;
 use App\Models\PenilaianTahapDua;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class PemenangController extends Controller
@@ -101,8 +103,58 @@ class PemenangController extends Controller
             })
             ->values();
 
+        $favorit = PemenangFavorit::query()
+            ->with([
+                'karya:id,nama_karya,nama_kategori,anggota_tim,pameran_ringkasan,pameran_link_video,pameran_logo_nama_asli,pameran_logo_path,pameran_submitted_at,status,lolos_nominasi',
+            ])
+            ->where('edisi_lomba_id', $edisi->id)
+            ->orderBy('peringkat')
+            ->get();
+
+        $karyaNominasi = KaryaPeserta::query()
+            ->where('edisi_lomba_id', $edisi->id)
+            ->where('status', 'submitted')
+            ->where('lolos_nominasi', true)
+            ->orderBy('nama_karya')
+            ->get(['id', 'nama_karya', 'nama_kategori']);
+
+        $favoritOptions = $karyaNominasi
+            ->map(fn (KaryaPeserta $karya) => [
+                'id' => $karya->id,
+                'label' => ($karya->nama_karya ?? '-') . ' — ' . ($karya->nama_kategori ?? '-'),
+            ])
+            ->values();
+
         return Inertia::render('Admin/Pemenang/Index', [
             'pemenang' => $pemenang,
+            'favorit' => [
+                'items' => $favorit->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'peringkat' => $item->peringkat,
+                        'karya_peserta_id' => $item->karya_peserta_id,
+                        'nama_karya' => $item->karya?->nama_karya,
+                        'nama_kategori' => $item->karya?->nama_kategori,
+                        'anggota_tim' => collect($item->karya?->anggota_tim ?? [])
+                            ->map(function ($anggota) {
+                                return [
+                                    'nama' => is_array($anggota) ? ($anggota['nama'] ?? '-') : '-',
+                                    'nim' => is_array($anggota) ? ($anggota['nim'] ?? '-') : '-',
+                                ];
+                            })
+                            ->values()
+                            ->all(),
+                        'pameran_ringkasan' => $item->karya?->pameran_ringkasan,
+                        'pameran_link_video' => $item->karya?->pameran_link_video,
+                        'pameran_logo_name' => $item->karya?->pameran_logo_nama_asli,
+                        'pameran_logo_url' => $item->karya?->pameran_logo_path
+                            ? route('admin.pameran.logo.preview', ['karya' => $item->karya->id])
+                            : null,
+                        'pameran_submitted_at' => $item->karya?->pameran_submitted_at?->format('d M Y, H:i'),
+                    ];
+                })->values()->all(),
+            ],
+            'favoritOptions' => $favoritOptions,
             'gemasiAktifLabel' => $edisi->nama . ' (' . $edisi->tahun . ')',
         ]);
     }
@@ -137,7 +189,52 @@ class PemenangController extends Controller
             PemenangKarya::query()->insert($payload);
         }
 
-        return redirect()->back()->with('success', 'Pemenang berhasil ditetapkan.');
+        return redirect()->back()->with('success', 'Pemenang edisi aktif berhasil ditetapkan.');
+    }
+
+    public function tetapkanFavorit(Request $request)
+    {
+        $edisi = $this->resolveEdisiKonteks();
+
+        $validated = $request->validate([
+            'jumlah' => ['required', 'integer', 'min:1', 'max:5'],
+            'karya_peserta_ids' => ['required', 'array'],
+            'karya_peserta_ids.*' => [
+                'required',
+                'integer',
+                Rule::exists('karya_peserta', 'id')->where(function ($query) use ($edisi) {
+                    $query->where('edisi_lomba_id', $edisi->id)
+                        ->where('status', 'submitted')
+                        ->where('lolos_nominasi', true);
+                }),
+            ],
+        ]);
+
+        $ids = collect($validated['karya_peserta_ids'])
+            ->filter()
+            ->unique()
+            ->take((int) $validated['jumlah'])
+            ->values();
+
+        abort_if($ids->isEmpty(), 422, 'Pilih minimal satu karya favorit.');
+
+        PemenangFavorit::query()
+            ->where('edisi_lomba_id', $edisi->id)
+            ->delete();
+
+        PemenangFavorit::query()->insert(
+            $ids->map(function ($karyaId, $index) use ($edisi) {
+                return [
+                    'edisi_lomba_id' => $edisi->id,
+                    'peringkat' => $index + 1,
+                    'karya_peserta_id' => (int) $karyaId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            })->all(),
+        );
+
+        return redirect()->back()->with('success', 'Karya favorit berhasil ditetapkan.');
     }
 
     // Arsip pemenang dihapus dari UI.

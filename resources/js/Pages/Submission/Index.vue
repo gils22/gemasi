@@ -420,19 +420,7 @@ defineOptions({
                     <TooltipProvider :delay-duration="150">
                         <div class="flex items-center justify-end gap-1">
                             <template v-if="mode === 'karya'">
-                                <Tooltip>
-                                    <TooltipTrigger as-child>
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            class="hidden md:inline-flex"
-                                            @click="openDetail(row)"
-                                        >
-                                            <Eye class="h-4 w-4" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                </Tooltip>
-
+                                <!-- Tombol Nominasi -->
                                 <Tooltip
                                     v-if="bolehKelola || bolehLoloskanNominasi"
                                 >
@@ -458,56 +446,29 @@ defineOptions({
                                             />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>{{
-                                        row.is_lolos_nominasi
-                                            ? "Batalkan nominasi"
-                                            : "Lolos nominasi"
-                                    }}</TooltipContent>
+                                    <TooltipContent>
+                                        {{
+                                            row.is_lolos_nominasi
+                                                ? "Batalkan nominasi"
+                                                : "Lolos nominasi"
+                                        }}
+                                    </TooltipContent>
                                 </Tooltip>
 
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    class="md:hidden"
-                                    @click="openDetail(row)"
-                                >
-                                    Lihat
-                                </Button>
-
-                                <Button
-                                    v-if="bolehKelola || bolehLoloskanNominasi"
-                                    variant="outline"
-                                    size="sm"
-                                    class="md:hidden"
-                                    :disabled="
-                                        !row.is_lolos_nominasi &&
-                                        (row.status !== 'submitted' ||
-                                            row.nilai_tahap_1 === null)
-                                    "
-                                    @click="toggleNominasi(row)"
-                                >
-                                    {{
-                                        row.is_lolos_nominasi
-                                            ? "Batalkan"
-                                            : "Lolos"
-                                    }}
-                                </Button>
-                            </template>
-
-                            <template v-else>
-                                <Tooltip v-if="bolehKelola">
+                                <!-- Tombol Detail -->
+                                <Tooltip>
                                     <TooltipTrigger as-child>
                                         <Button
                                             size="icon"
                                             variant="ghost"
-                                            class="text-amber-600 hover:text-amber-700"
-                                            @click="kembalikanKeKarya(row)"
+                                            class="hidden md:inline-flex"
+                                            @click="openDetail(row)"
                                         >
-                                            <RotateCcw class="h-4 w-4" />
+                                            <Eye class="h-4 w-4" />
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent
-                                        >Batalkan Nominasi</TooltipContent
+                                        >Lihat Detail</TooltipContent
                                     >
                                 </Tooltip>
                             </template>

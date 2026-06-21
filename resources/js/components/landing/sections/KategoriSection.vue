@@ -16,7 +16,8 @@ type LandingKategori = {
     nama: string;
     slug?: string | null;
     deskripsi?: string | null;
-    weights?: Array<{ label: string; point: number }>;
+    icon_url?: string | null;
+    weights?: Array<{ label: string; point: number; description?: string }>;
 };
 
 const props = defineProps<{
@@ -32,11 +33,31 @@ const fallbackCategories = [
         description:
             "Kategori ini menantang peserta untuk mengembangkan aplikasi atau sistem yang mendukung bisnis digital dan teknologi keuangan. Solusi yang dihasilkan diharapkan mampu meningkatkan efisiensi, memecahkan masalah, dan mendorong pertumbuhan sektor bisnis digital dan fintech.",
         weights: [
-            { label: "Inovasi", point: 20 },
-            { label: "Fitur", point: 25 },
-            { label: "Fungsionalitas", point: 25 },
-            { label: "Pasar", point: 15 },
-            { label: "Keberlanjutan", point: 15 },
+            {
+                label: "Inovasi",
+                point: 20,
+                description: "Kebaruan ide dan relevansi solusi.",
+            },
+            {
+                label: "Fitur",
+                point: 25,
+                description: "Kelengkapan fitur utama yang mendukung tujuan karya.",
+            },
+            {
+                label: "Fungsionalitas",
+                point: 25,
+                description: "Kesesuaian fungsi dan stabilitas sistem.",
+            },
+            {
+                label: "Pasar",
+                point: 15,
+                description: "Potensi kebutuhan dan penerapan di target pengguna.",
+            },
+            {
+                label: "Keberlanjutan",
+                point: 15,
+                description: "Kemampuan dikembangkan dan dipertahankan.",
+            },
         ],
     },
     {
@@ -47,11 +68,31 @@ const fallbackCategories = [
         description:
             "Kategori ini berfokus pada pengembangan model bisnis berbasis produk ICT. Peserta diharapkan mampu mengimplementasikan pendekatan lean dan MVP untuk menghasilkan solusi inovatif yang memiliki problem–solution fit serta dampak bisnis yang berkelanjutan.",
         weights: [
-            { label: "Kejelasan Model Bisnis", point: 25 },
-            { label: "Validasi Pasar", point: 20 },
-            { label: "Proyeksi Keuangan", point: 20 },
-            { label: "Inovasi", point: 20 },
-            { label: "Presentasi", point: 15 },
+            {
+                label: "Kejelasan Model Bisnis",
+                point: 25,
+                description: "Struktur bisnis, value proposition, dan alur pendapatan.",
+            },
+            {
+                label: "Validasi Pasar",
+                point: 20,
+                description: "Bukti kebutuhan dan minat pasar yang dituju.",
+            },
+            {
+                label: "Proyeksi Keuangan",
+                point: 20,
+                description: "Kelayakan hitung-hitungan biaya, pendapatan, dan laba.",
+            },
+            {
+                label: "Inovasi",
+                point: 20,
+                description: "Keunikan ide dibanding solusi sejenis.",
+            },
+            {
+                label: "Presentasi",
+                point: 15,
+                description: "Kejelasan penyampaian dan argumentasi tim.",
+            },
         ],
     },
     {
@@ -150,6 +191,7 @@ const mappedCategories = computed(() => {
             id: item.slug || String(item.id),
             name: item.nama,
             description: item.deskripsi ?? "",
+            icon_url: item.icon_url ?? null,
             weights: item.weights ?? [],
         }));
     }

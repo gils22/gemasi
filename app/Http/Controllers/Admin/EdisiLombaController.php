@@ -31,12 +31,13 @@ class EdisiLombaController extends Controller
         }
 
         $defaultFase = [
-            ['judul' => 'Opening GEMASI', 'fase_kunci' => 'opening', 'urutan' => 1],
-            ['judul' => 'Pendaftaran GEMASI', 'fase_kunci' => 'pendaftaran', 'urutan' => 2],
-            ['judul' => 'Penjurian Tahap 1', 'fase_kunci' => 'penjurian_tahap_1', 'urutan' => 3],
-            ['judul' => 'Penjurian Tahap 2', 'fase_kunci' => 'penjurian_tahap_2', 'urutan' => 4],
-            ['judul' => 'Pameran Karya', 'fase_kunci' => 'pameran_karya', 'urutan' => 5],
-            ['judul' => 'Awarding GEMASI', 'fase_kunci' => 'awarding', 'urutan' => 6],
+            ['judul' => 'Opening GEMASI', 'fase_kunci' => 'opening'],
+            ['judul' => 'Pendaftaran GEMASI', 'fase_kunci' => 'pendaftaran'],
+            ['judul' => 'Penjurian Tahap 1', 'fase_kunci' => 'penjurian_tahap_1'],
+            ['judul' => 'Pengumuman Nominasi', 'fase_kunci' => 'pengumuman_nominasi'],
+            ['judul' => 'Penjurian Tahap 2', 'fase_kunci' => 'penjurian_tahap_2'],
+            ['judul' => 'Pameran Karya', 'fase_kunci' => 'pameran_karya'],
+            ['judul' => 'Awarding GEMASI', 'fase_kunci' => 'awarding'],
         ];
 
         $payload = array_map(function (array $fase) use ($edisi) {
@@ -49,7 +50,6 @@ class EdisiLombaController extends Controller
                 'selesai_pada' => null,
                 'is_tba' => true,
                 'deskripsi' => null,
-                'urutan' => $fase['urutan'],
                 'aktif' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -234,7 +234,7 @@ class EdisiLombaController extends Controller
         if (!empty($blocked)) {
             return back()
                 ->withErrors([
-                    'bulk' => 'Sebagian edisi tidak bisa dihapus (aktif atau sudah punya data): ' . implode(', ', $blocked),
+                    'bulk' => 'Sebagian edisi tidak bisa dihapus karena masih aktif atau masih punya data: ' . implode(', ', $blocked),
                 ])
                 ->setStatusCode(303);
         }

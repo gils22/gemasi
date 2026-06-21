@@ -6,6 +6,13 @@ import { Plus, Trash2 } from "lucide-vue-next";
 import DashboardLayout from "@/Layouts/DashboardLayout.vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type Edisi = {
     id: number;
@@ -18,9 +25,20 @@ type Edisi = {
 type BobotKategori = {
     kategori_lomba_id: number;
     nama_kategori: string;
+    icon_url: string | null;
     kriteria: Array<{
         nama: string;
+        deskripsi: string;
         poin: number;
+    }>;
+};
+
+type BobotFormItem = {
+    kategori_lomba_id: number;
+    kriteria: Array<{
+        nama: string;
+        deskripsi: string;
+        poin: number | string;
     }>;
 };
 
@@ -36,16 +54,17 @@ const isEditable = computed(() => page.props.isEditable === true);
 const basePath = computed(() => page.props.basePath || "/admin");
 const daftarKategori = computed(() => page.props.bobotKategori ?? []);
 
-const buildBobot = (items: BobotKategori[]) =>
+const buildBobot = (items: BobotKategori[]): BobotFormItem[] =>
     items.map((item) => ({
         kategori_lomba_id: item.kategori_lomba_id,
         kriteria:
             item.kriteria?.length > 0
                 ? item.kriteria.map((k) => ({
                       nama: k.nama ?? "",
+                      deskripsi: k.deskripsi ?? "",
                       poin: Number(k.poin ?? 0),
                   }))
-                : [{ nama: "", poin: "" }],
+                : [{ nama: "", deskripsi: "", poin: "" }],
     }));
 
 const form = useForm({
@@ -54,7 +73,7 @@ const form = useForm({
 });
 
 const activeKategoriId = ref<number | null>(
-    form.bobot[0]?.kategori_lomba_id ?? null
+    form.bobot[0]?.kategori_lomba_id ?? null,
 );
 
 watch(
@@ -68,24 +87,24 @@ watch(
         form.reset();
         form.clearErrors();
         activeKategoriId.value = nextBobot[0]?.kategori_lomba_id ?? null;
-    }
+    },
 );
 
 const activeKategoriIndex = computed(() => {
     const idx = form.bobot.findIndex(
-        (item) => item.kategori_lomba_id === activeKategoriId.value
+        (item) => item.kategori_lomba_id === activeKategoriId.value,
     );
     return idx >= 0 ? idx : 0;
 });
 
 const activeKategori = computed(
-    () => form.bobot[activeKategoriIndex.value] ?? null
+    () => form.bobot[activeKategoriIndex.value] ?? null,
 );
 
 const totalByKategori = (indexKategori: number) =>
     form.bobot[indexKategori]?.kriteria?.reduce(
         (acc, item) => acc + Number(item.poin || 0),
-        0
+        0,
     ) ?? 0;
 
 const isTotalValid = (indexKategori: number) =>
@@ -117,7 +136,11 @@ const isBobotInvalid = computed(() => {
 });
 
 const tambahKriteria = (indexKategori: number) => {
-    form.bobot[indexKategori].kriteria.push({ nama: "", poin: "" });
+    form.bobot[indexKategori].kriteria.push({
+        nama: "",
+        deskripsi: "",
+        poin: "",
+    });
 };
 
 const hapusKriteria = (indexKategori: number, indexKriteria: number) => {
@@ -138,6 +161,7 @@ const submit = () => {
             ...item,
             kriteria: item.kriteria.map((kriteria) => ({
                 nama: kriteria.nama.trim(),
+                deskripsi: kriteria.deskripsi.trim(),
                 poin: Number(kriteria.poin || 0),
             })),
         })),
@@ -195,10 +219,7 @@ defineOptions({
                 </button>
             </div>
 
-            <div
-                v-if="activeKategori"
-                class="rounded-xl border p-4 space-y-3"
-            >
+            <div v-if="activeKategori" class="rounded-xl border p-4 space-y-3">
                 <div class="flex items-center justify-between">
                     <h4 class="font-semibold text-slate-800">
                         {{ daftarKategori[activeKategoriIndex]?.nama_kategori }}
@@ -228,11 +249,11 @@ defineOptions({
 
                 <div class="space-y-2">
                     <div
-                        class="hidden md:grid md:grid-cols-12 gap-2 px-1 text-xs font-medium text-slate-500"
+                        class="hidden md:grid md:grid-cols-[minmax(0,1fr)_160px_72px] gap-2 px-1 text-xs font-medium text-slate-500"
                     >
-                        <div class="md:col-span-7">Kriteria Penilaian</div>
-                        <div class="md:col-span-3">Poin</div>
-                        <div class="md:col-span-2">Aksi</div>
+                        <div>Kriteria Penilaian</div>
+                        <div>Poin</div>
+                        <div>Aksi</div>
                     </div>
 
                     <div
@@ -240,16 +261,25 @@ defineOptions({
                             kriteria, idxKriteria
                         ) in activeKategori.kriteria"
                         :key="`k-${activeKategori.kategori_lomba_id}-${idxKriteria}`"
-                        class="grid grid-cols-1 md:grid-cols-12 gap-2 items-center"
+                        class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_160px_72px] gap-2 items-start md:items-center"
                     >
-                        <div class="md:col-span-7">
+                        <div
+                            class="grid grid-cols-1 gap-2 min-w-0 md:grid-cols-[1fr_1fr] md:gap-3"
+                        >
                             <Input
                                 v-model="kriteria.nama"
                                 :disabled="!isEditable"
                                 :placeholder="`Kriteria ${idxKriteria + 1}`"
                             />
+                            <textarea
+                                v-model="kriteria.deskripsi"
+                                :disabled="!isEditable"
+                                rows="1"
+                                class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 resize-none"
+                                placeholder="Deskripsi singkat kriteria"
+                            />
                         </div>
-                        <div class="md:col-span-3">
+                        <div class="md:self-start">
                             <Input
                                 v-model.number="kriteria.poin"
                                 type="number"
@@ -260,25 +290,37 @@ defineOptions({
                                 placeholder="Contoh: 25"
                             />
                         </div>
-                        <div class="md:col-span-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                :disabled="
-                                    !isEditable ||
-                                    activeKategori.kriteria.length <= 1
-                                "
-                                @click="
-                                    hapusKriteria(
-                                        activeKategoriIndex,
-                                        idxKriteria
-                                    )
-                                "
-                            >
-                                <Trash2 class="w-4 h-4" />
-                            </Button>
-                        </div>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger as-child>
+                                    <div class="md:self-start">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            :disabled="
+                                                !isEditable ||
+                                                activeKategori.kriteria
+                                                    .length <= 1
+                                            "
+                                            class="border-slate-200 text-slate-500 hover:border-red-300 hover:bg-red-50 hover:text-red-500 transition-all duration-200"
+                                            @click="
+                                                hapusKriteria(
+                                                    activeKategoriIndex,
+                                                    idxKriteria,
+                                                )
+                                            "
+                                        >
+                                            <Trash2 class="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </TooltipTrigger>
+
+                                <TooltipContent side="right">
+                                    <p>Hapus kriteria</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     </div>
                 </div>
 
@@ -298,7 +340,8 @@ defineOptions({
                     :disabled="form.processing || !isEditable || isBobotInvalid"
                     @click="submit"
                 >
-                    {{ form.processing ? "Menyimpan..." : "Simpan Bobot" }}
+                    <Spinner v-if="form.processing" class="h-4 w-4" />
+                    <span v-else>Simpan Bobot</span>
                 </Button>
             </div>
         </div>

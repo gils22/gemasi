@@ -37,21 +37,34 @@ type Pemenang = {
     video_url?: string | null;
 };
 
+type EdisiDisplay = Edisi & {
+    pemenang: Pemenang[];
+    favorit: Pemenang[];
+};
+
 const page = usePage<{
     daftarEdisi: Edisi[];
     pemenangPerEdisi: Record<number, Pemenang[]>;
+    favoritPerEdisi?: Record<number, Pemenang[]>;
 }>();
 
 const daftarEdisi = computed(() => page.props.daftarEdisi ?? []);
 const pemenangPerEdisi = computed(() => page.props.pemenangPerEdisi ?? {});
+const favoritPerEdisi = computed(() => page.props.favoritPerEdisi ?? {});
 
-const edisiDenganPemenang = computed(() =>
+const edisiLengkap = computed<EdisiDisplay[]>(() =>
     daftarEdisi.value
         .map((edisi) => ({
             ...edisi,
             pemenang: pemenangPerEdisi.value[edisi.id] ?? [],
+            favorit: favoritPerEdisi.value[edisi.id] ?? [],
         }))
-        .filter((edisi) => edisi.pemenang.length > 0),
+);
+
+const edisiDenganPemenang = computed(() =>
+    edisiLengkap.value.filter(
+        (edisi) => edisi.pemenang.length > 0 || edisi.favorit.length > 0,
+    ),
 );
 
 const activeEdisiId = ref<number | null>(null);
@@ -71,10 +84,10 @@ const activeEdisiValue = computed({
 
 const activeEdisi = computed(
     () =>
-        edisiDenganPemenang.value.find(
+        edisiLengkap.value.find(
             (edisi) => edisi.id === activeEdisiId.value,
         ) ??
-        edisiDenganPemenang.value[0] ??
+        edisiLengkap.value[0] ??
         null,
 );
 
@@ -113,17 +126,49 @@ const filteredPemenang = computed(() => {
     });
 });
 
+const groupedPemenang = computed(() => {
+    const groups = new Map<string, Pemenang[]>();
+    filteredPemenang.value.forEach((row) => {
+        const key = row.kategori ?? "Tanpa Kategori";
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)?.push(row);
+    });
+    return Array.from(groups.entries()).map(([kategori, items]) => ({
+        kategori,
+        items,
+    }));
+});
+
+const filteredFavorit = computed(() => {
+    if (!activeEdisi.value) return [];
+    let rows = activeEdisi.value.favorit ?? [];
+    if (activeKategori.value !== "Semua Kategori") {
+        rows = rows.filter(
+            (row) => (row.kategori ?? "-") === activeKategori.value,
+        );
+    }
+    const q = searchQuery.value.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) => {
+        const title = (row.nama_karya ?? "").toLowerCase();
+        const team =
+            row.anggota_tim
+                ?.map((a) => a.nama ?? "")
+                .join(" ")
+                .toLowerCase() ?? "";
+        const kategori = (row.kategori ?? "").toLowerCase();
+        return title.includes(q) || team.includes(q) || kategori.includes(q);
+    });
+});
+
 watch(
-    edisiDenganPemenang,
+    daftarEdisi,
     (items) => {
         if (!items.length) {
             activeEdisiId.value = null;
             return;
         }
-        if (
-            !activeEdisiId.value ||
-            !items.some((item) => item.id === activeEdisiId.value)
-        ) {
+        if (!activeEdisiId.value || !items.some((item) => item.id === activeEdisiId.value)) {
             activeEdisiId.value = items[0].id;
         }
     },
@@ -216,13 +261,13 @@ watch(
                                 <SelectValue placeholder="Pilih Tahun" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem
-                                    v-for="edisi in edisiDenganPemenang"
-                                    :key="edisi.id"
-                                    :value="String(edisi.id)"
-                                >
-                                    {{ edisi.tahun }}
-                                </SelectItem>
+                                    <SelectItem
+                                        v-for="edisi in daftarEdisi"
+                                        :key="edisi.id"
+                                        :value="String(edisi.id)"
+                                    >
+                                        {{ edisi.tahun }}
+                                    </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -278,98 +323,236 @@ watch(
                             </h2>
                         </div>
 
-                        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                            <Card
-                                v-for="(row, idx) in filteredPemenang"
-                                :key="`${activeEdisi.id}-${idx}`"
-                                class="relative border-slate-200 rounded-lg"
+                        <div class="space-y-8">
+                            <div
+                                v-for="group in groupedPemenang"
+                                :key="group.kategori"
+                                class="space-y-3"
                             >
-                                <CardHeader class="pb-2 space-y-3">
-                                    <div
-                                        class="flex items-center justify-between"
+                                <div
+                                    class="flex items-center justify-between gap-3"
+                                >
+                                    <h3
+                                        class="text-base font-semibold text-slate-900"
                                     >
-                                        <Badge
-                                            class="bg-amber-100 text-amber-700"
-                                        >
-                                            Juara {{ row.peringkat }}
-                                        </Badge>
-                                        <span
-                                            v-if="row.kategori"
-                                            class="text-xs text-slate-500"
-                                        >
-                                            {{ row.kategori }}
-                                        </span>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <div
-                                            class="flex h-14 w-14 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-400"
-                                        >
-                                            <img
-                                                v-if="row.logo_url"
-                                                :src="row.logo_url"
-                                                alt="Logo karya"
-                                                class="h-full w-full rounded-md object-contain p-1"
-                                            />
-                                            <span v-else>
-                                                {{
-                                                    (row.nama_karya ?? "GK")
-                                                        .slice(0, 2)
-                                                        .toUpperCase()
-                                                }}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <CardTitle
-                                                class="text-base text-slate-900"
-                                            >
-                                                {{ row.nama_karya ?? "-" }}
-                                            </CardTitle>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent class="space-y-2 pb-12">
-                                    <div v-if="row.anggota_tim?.length">
-                                        <p class="text-xs text-slate-500">
-                                            Anggota Tim
-                                        </p>
-                                        <div class="mt-1 space-y-1">
+                                        {{ group.kategori }}
+                                    </h3>
+                                    <span class="text-xs text-slate-500">
+                                        {{ group.items.length }} karya
+                                    </span>
+                                </div>
+
+                                <div
+                                    class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+                                >
+                                    <Card
+                                        v-for="(row, idx) in group.items"
+                                        :key="`${activeEdisi.id}-${group.kategori}-${idx}`"
+                                        class="relative rounded-lg border-slate-200"
+                                    >
+                                        <CardHeader class="space-y-3 pb-2">
                                             <div
-                                                v-for="(
-                                                    anggota, aidx
-                                                ) in row.anggota_tim"
-                                                :key="`anggota-${aidx}`"
-                                                class="flex items-center justify-between text-sm text-slate-800"
+                                                class="flex items-center justify-between"
                                             >
-                                                <span class="font-medium">
-                                                    {{ anggota.nama ?? "-" }}
-                                                </span>
-                                                <span
+                                                <Badge
+                                                    class="bg-amber-100 text-amber-700"
+                                                >
+                                                    Juara {{ row.peringkat }}
+                                                </Badge>
+                                            </div>
+                                            <div
+                                                class="flex items-center gap-3"
+                                            >
+                                                <div
+                                                    class="flex h-14 w-14 items-center justify-center rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-400"
+                                                >
+                                                    <img
+                                                        v-if="row.logo_url"
+                                                        :src="row.logo_url"
+                                                        alt="Logo karya"
+                                                        class="h-full w-full rounded-md object-contain p-1"
+                                                    />
+                                                    <span v-else>
+                                                        {{
+                                                            (
+                                                                row.nama_karya ??
+                                                                "GK"
+                                                            )
+                                                                .slice(0, 2)
+                                                                .toUpperCase()
+                                                        }}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <CardTitle
+                                                        class="text-base text-slate-900"
+                                                    >
+                                                        {{
+                                                            row.nama_karya ??
+                                                            "-"
+                                                        }}
+                                                    </CardTitle>
+                                                </div>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent class="space-y-2 pb-12">
+                                            <div v-if="row.anggota_tim?.length">
+                                                <p
                                                     class="text-xs text-slate-500"
                                                 >
-                                                    {{ anggota.nim ?? "-" }}
+                                                    Anggota Tim
+                                                </p>
+                                                <div class="mt-1 space-y-1">
+                                                    <div
+                                                        v-for="(
+                                                            anggota, aidx
+                                                        ) in row.anggota_tim"
+                                                        :key="`anggota-${aidx}`"
+                                                        class="flex items-center justify-between text-sm text-slate-800"
+                                                    >
+                                                        <span
+                                                            class="font-medium"
+                                                        >
+                                                            {{
+                                                                anggota.nama ??
+                                                                "-"
+                                                            }}
+                                                        </span>
+                                                        <span
+                                                            class="text-xs text-slate-500"
+                                                        >
+                                                            {{
+                                                                anggota.nim ??
+                                                                "-"
+                                                            }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                        <div class="absolute bottom-4 right-4">
+                                            <TooltipProvider
+                                                :delay-duration="150"
+                                            >
+                                                <Tooltip>
+                                                    <TooltipTrigger as-child>
+                                                        <Link
+                                                            :href="`/juara/${getWinnerId(row, idx)}`"
+                                                            class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                                        >
+                                                            <Eye
+                                                                class="h-4 w-4"
+                                                            />
+                                                        </Link>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent side="top">
+                                                        Detail
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </div>
+                                    </Card>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="filteredFavorit.length"
+                            class="mt-8 space-y-4 rounded-2xl border p-4"
+                        >
+                            <div
+                                class="flex items-center justify-between gap-2"
+                            >
+                                <div>
+                                    <h3
+                                        class="text-lg font-semibold text-slate-900"
+                                    >
+                                        Karya Favorit
+                                    </h3>
+                                </div>
+                            </div>
+
+                            <div
+                                class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+                            >
+                                <Card
+                                    v-for="(row, idx) in filteredFavorit"
+                                    :key="`favorit-${activeEdisi.id}-${idx}`"
+                                    class="relative rounded-lg border-slate-200"
+                                >
+                                    <CardHeader class="space-y-3 pb-2">
+                                        <div
+                                            class="flex items-center justify-between"
+                                        >
+                                            <Badge
+                                                class="bg-amber-100 text-amber-700"
+                                            >
+                                                Favorit
+                                                {{ row.peringkat ?? idx + 1 }}
+                                            </Badge>
+                                            <span
+                                                v-if="row.kategori"
+                                                class="text-xs text-slate-500"
+                                            >
+                                                {{ row.kategori }}
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-3">
+                                            <div
+                                                class="flex h-14 w-14 items-center justify-center rounded-md border border-amber-200 bg-white text-xs font-semibold text-amber-500"
+                                            >
+                                                <img
+                                                    v-if="row.logo_url"
+                                                    :src="row.logo_url"
+                                                    alt="Logo karya favorit"
+                                                    class="h-full w-full rounded-md object-contain p-1"
+                                                />
+                                                <span v-else>
+                                                    {{
+                                                        (row.nama_karya ?? "FK")
+                                                            .slice(0, 2)
+                                                            .toUpperCase()
+                                                    }}
                                                 </span>
                                             </div>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                                <div class="absolute bottom-4 right-4">
-                                    <TooltipProvider :delay-duration="150">
-                                        <Tooltip>
-                                            <TooltipTrigger as-child>
-                                                <Link
-                                                    :href="`/juara/${getWinnerId(row, idx)}`"
-                                                    class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                                            <div>
+                                                <CardTitle
+                                                    class="text-base text-slate-900"
                                                 >
-                                                    <Eye class="h-4 w-4" />
-                                                </Link>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="top">
-                                                Detail
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                </div>
-                            </Card>
+                                                    {{ row.nama_karya ?? "-" }}
+                                                </CardTitle>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent class="space-y-2 pb-12">
+                                        <div v-if="row.anggota_tim?.length">
+                                            <p class="text-xs text-slate-500">
+                                                Anggota Tim
+                                            </p>
+                                            <div class="mt-1 space-y-1">
+                                                <div
+                                                    v-for="(
+                                                        anggota, aidx
+                                                    ) in row.anggota_tim"
+                                                    :key="`favorit-anggota-${aidx}`"
+                                                    class="flex items-center justify-between text-sm text-slate-800"
+                                                >
+                                                    <span class="font-medium">
+                                                        {{
+                                                            anggota.nama ?? "-"
+                                                        }}
+                                                    </span>
+                                                    <span
+                                                        class="text-xs text-slate-500"
+                                                    >
+                                                        {{ anggota.nim ?? "-" }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
                         </div>
                     </div>
                 </transition>

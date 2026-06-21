@@ -2,18 +2,7 @@
 import { ref, computed, watch } from "vue";
 import LandingLayout from "@/Layouts/LandingLayout.vue";
 import CategorySideTabs from "@/components/landing/CategorySideTabs.vue";
-import {
-    Award,
-    Layers,
-    LineChart,
-    Cpu,
-    Brush,
-    Code2,
-    Gamepad2,
-    Smartphone,
-    Database,
-    ShieldCheck,
-} from "lucide-vue-next";
+import { Award } from "lucide-vue-next";
 import {
     Select,
     SelectContent,
@@ -32,7 +21,7 @@ type KategoriItem = {
     id: number;
     nama: string;
     edisi_lomba_id: number;
-    icon?: unknown;
+    icon_url?: string | null;
     accent?: string;
 };
 
@@ -48,11 +37,19 @@ type NominasiItem = {
     anggota_tim?: Array<{ nama?: string | null; nim?: string | null }>;
 };
 
+type TimelinePengumuman = {
+    judul: string;
+    mulai_pada: string | null;
+    selesai_pada: string | null;
+    is_tba: boolean;
+};
+
 const props = defineProps<{
     daftarEdisi?: EdisiItem[];
     edisiDefault?: number | null;
     kategoriOptions?: KategoriItem[];
     nominasi?: NominasiItem[];
+    timelinePengumumanPerEdisi?: Record<number, TimelinePengumuman | null>;
 }>();
 
 const selectedEdisi = ref<string>(
@@ -70,56 +67,36 @@ watch(
 
 const edisiOptions = computed(() => props.daftarEdisi ?? []);
 
-const getCategoryMeta = (name: string) => {
-    const label = name.toLowerCase();
-    if (label.includes("fintech") || label.includes("bisnis")) {
-        return { icon: Layers, accent: "bg-emerald-100 text-emerald-700" };
-    }
-    if (label.includes("business plan") || label.includes("plan")) {
-        return { icon: LineChart, accent: "bg-blue-100 text-blue-700" };
-    }
-    if (label.includes("sistem informasi") || label.includes("aplikasi")) {
-        return { icon: Cpu, accent: "bg-indigo-100 text-indigo-700" };
-    }
-    if (
-        label.includes("ui/ux") ||
-        label.includes("ui") ||
-        label.includes("ux")
-    ) {
-        return { icon: Brush, accent: "bg-pink-100 text-pink-700" };
-    }
-    if (label.includes("pemrograman") || label.includes("program")) {
-        return { icon: Code2, accent: "bg-slate-100 text-slate-700" };
-    }
-    if (label.includes("data")) {
-        return { icon: Database, accent: "bg-amber-100 text-amber-700" };
-    }
-    if (
-        label.includes("ar") ||
-        label.includes("vr") ||
-        label.includes("interaktif")
-    ) {
-        return { icon: Gamepad2, accent: "bg-violet-100 text-violet-700" };
-    }
-    if (label.includes("multimedia")) {
-        return { icon: Smartphone, accent: "bg-cyan-100 text-cyan-700" };
-    }
-    return { icon: ShieldCheck, accent: "bg-slate-100 text-slate-600" };
-};
+const selectedTimelinePengumuman = computed(() => {
+    const edisiId = Number(selectedEdisi.value);
+    return props.timelinePengumumanPerEdisi?.[edisiId] ?? null;
+});
+
+const nominasiAktif = computed(() => {
+    const timeline = selectedTimelinePengumuman.value;
+    if (!timeline) return false;
+    if (timeline.is_tba) return true;
+    if (!timeline.mulai_pada) return true;
+
+    const parsed = new Date(timeline.mulai_pada);
+    if (Number.isNaN(parsed.getTime())) return false;
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    parsed.setHours(0, 0, 0, 0);
+    return now >= parsed;
+});
 
 const kategoriByEdisi = computed(() => {
     const edisiId = Number(selectedEdisi.value);
     return (props.kategoriOptions ?? [])
         .filter((item) => item.edisi_lomba_id === edisiId)
-        .map((item) => {
-            const meta = getCategoryMeta(item.nama);
-            return {
-                ...item,
-                name: item.nama,
-                icon: meta.icon,
-                accent: meta.accent,
-            };
-        });
+        .map((item) => ({
+            ...item,
+            name: item.nama,
+            icon: item.icon_url ?? null,
+            accent: "bg-slate-100 text-slate-600",
+        }));
 });
 
 watch(
@@ -162,6 +139,7 @@ const kategoriLabel = (item: NominasiItem) => {
     );
     return found?.nama ?? "-";
 };
+
 </script>
 
 <template>
@@ -197,98 +175,135 @@ const kategoriLabel = (item: NominasiItem) => {
                     </Select>
                 </div>
 
-                <div
-                    class="mt-6 grid gap-6 lg:grid-cols-[260px_1fr] lg:items-start"
-                >
-                    <CategorySideTabs
-                        v-model="selectedKategori"
-                        :items="kategoriByEdisi"
-                    />
-
-                    <div>
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <h2
-                                    class="text-lg font-semibold text-slate-900"
-                                >
-                                    Karya yang Masuk Nominasi
-                                </h2>
-                                <p class="mt-1 text-xs text-slate-500">
-                                    {{ edisiLabel }}
-                                </p>
-                            </div>
-                            <span
-                                class="text-xs font-semibold uppercase text-slate-400"
-                            >
-                                {{ nominasiFiltered.length }} Karya
+                <div class="mt-6">
+                    <div
+                        v-if="!nominasiAktif"
+                        class="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-900"
+                    >
+                        <p class="text-base font-semibold">
+                            Pengumuman nominasi belum aktif
+                        </p>
+                        <p class="mt-2 text-sm leading-relaxed text-amber-800">
+                            Daftar nominasi akan tampil otomatis ketika timeline
+                            <span class="font-semibold">
+                                {{
+                                    selectedTimelinePengumuman?.judul ??
+                                    "Pengumuman Nominasi"
+                                }}
                             </span>
-                        </div>
+                            sudah melewati tanggal mulai.
+                        </p>
+                        <p v-if="selectedTimelinePengumuman?.mulai_pada || selectedTimelinePengumuman?.selesai_pada" class="mt-2 text-sm text-amber-700">
+                            Mulai:
+                            {{ selectedTimelinePengumuman?.mulai_pada ?? "TBA" }}
+                        </p>
+                    </div>
 
-                        <div v-if="nominasiFiltered.length === 0" class="mt-4">
+                    <div
+                        v-else
+                        class="grid gap-6 lg:grid-cols-[260px_1fr] lg:items-start"
+                    >
+                        <CategorySideTabs
+                            v-model="selectedKategori"
+                            :items="kategoriByEdisi"
+                        />
+
+                        <div>
                             <div
-                                class="rounded-lg border border-dashed border-slate-200 bg-white/70 p-6 text-sm text-slate-500"
+                                class="flex items-center justify-between gap-3"
                             >
-                                Belum ada karya nominasi untuk filter ini.
+                                <div>
+                                    <h2
+                                        class="text-lg font-semibold text-slate-900"
+                                    >
+                                        Karya yang Masuk Nominasi
+                                    </h2>
+                                    <p class="mt-1 text-xs text-slate-500">
+                                        {{ edisiLabel }}
+                                    </p>
+                                </div>
+                                <span
+                                    class="text-xs font-semibold uppercase text-slate-400"
+                                >
+                                    {{ nominasiFiltered.length }} Karya
+                                </span>
                             </div>
-                        </div>
 
-                        <div
-                            v-else
-                            class="mt-4 grid max-h-[520px] gap-4 overflow-y-auto pr-1"
-                        >
                             <div
-                                v-for="item in nominasiFiltered"
-                                :key="item.id"
-                                class="rounded-lg border border-slate-200 bg-white/80 p-4"
+                                v-if="nominasiFiltered.length === 0"
+                                class="mt-4"
                             >
                                 <div
-                                    class="flex items-start justify-between gap-3"
+                                    class="rounded-lg border border-dashed border-slate-200 bg-white/70 p-6 text-sm text-slate-500"
                                 >
-                                    <div>
-                                        <p
-                                            class="text-xs font-semibold uppercase text-slate-400"
-                                        >
-                                            {{ kategoriLabel(item) }}
-                                        </p>
-                                        <h3
-                                            class="mt-2 text-base font-semibold text-slate-900"
-                                        >
-                                            {{ item.nama_karya }}
-                                        </h3>
-                                        <div
-                                            class="mt-2 space-y-1 text-xs text-slate-600"
-                                        >
-                                            <p
-                                                v-for="(
-                                                    anggota, idx
-                                                ) in item.anggota_tim ?? []"
-                                                :key="`anggota-${item.id}-${idx}`"
-                                                class="flex items-center justify-between gap-2"
-                                            >
-                                                <span
-                                                    class="font-semibold text-slate-700"
-                                                >
-                                                    {{ anggota.nama ?? "-" }}
-                                                </span>
-                                                <span class="text-slate-500">
-                                                    {{ anggota.nim ?? "-" }}
-                                                </span>
-                                            </p>
-                                            <p
-                                                v-if="
-                                                    !(item.anggota_tim ?? [])
-                                                        .length
-                                                "
-                                                class="text-slate-500"
-                                            >
-                                                Tim belum tersedia.
-                                            </p>
-                                        </div>
-                                    </div>
+                                    Belum ada karya nominasi untuk tahun ini.
+                                </div>
+                            </div>
+
+                            <div
+                                v-else
+                                class="mt-4 grid max-h-[520px] gap-4 overflow-y-auto pr-1"
+                            >
+                                <div
+                                    v-for="item in nominasiFiltered"
+                                    :key="item.id"
+                                    class="rounded-lg border border-slate-200 bg-white/80 p-4"
+                                >
                                     <div
-                                        class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/5 text-slate-600"
+                                        class="flex items-start justify-between gap-3"
                                     >
-                                        <Award class="h-5 w-5" />
+                                        <div>
+                                            <p
+                                                class="text-xs font-semibold uppercase text-slate-400"
+                                            >
+                                                {{ kategoriLabel(item) }}
+                                            </p>
+                                            <h3
+                                                class="mt-2 text-base font-semibold text-slate-900"
+                                            >
+                                                {{ item.nama_karya }}
+                                            </h3>
+                                            <div
+                                                class="mt-2 space-y-1 text-xs text-slate-600"
+                                            >
+                                                <p
+                                                    v-for="(
+                                                        anggota, idx
+                                                    ) in item.anggota_tim ?? []"
+                                                    :key="`anggota-${item.id}-${idx}`"
+                                                    class="flex items-center justify-between gap-2"
+                                                >
+                                                    <span
+                                                        class="font-semibold text-slate-700"
+                                                    >
+                                                        {{
+                                                            anggota.nama ?? "-"
+                                                        }}
+                                                    </span>
+                                                    <span
+                                                        class="text-slate-500"
+                                                    >
+                                                        {{ anggota.nim ?? "-" }}
+                                                    </span>
+                                                </p>
+                                                <p
+                                                    v-if="
+                                                        !(
+                                                            item.anggota_tim ??
+                                                            []
+                                                        ).length
+                                                    "
+                                                    class="text-slate-500"
+                                                >
+                                                    Tim belum tersedia.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/5 text-slate-600"
+                                        >
+                                            <Award class="h-5 w-5" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>

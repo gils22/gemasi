@@ -5,6 +5,7 @@ import { toast } from "vue-sonner";
 import DashboardLayout from "@/Layouts/DashboardLayout.vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 
 type Edisi = {
     id: number;
@@ -89,7 +90,7 @@ const buildPreviewUrl = (raw: string) => {
 };
 
 const templatePreviewUrl = computed(() =>
-    buildPreviewUrl(form.template_proposal_url ?? "")
+    buildPreviewUrl(form.template_proposal_url ?? ""),
 );
 
 const submit = () => {
@@ -113,76 +114,117 @@ defineOptions({
 
 <template>
     <div class="space-y-4">
-        <div class="bg-white border rounded-xl p-4 shadow-sm space-y-4">
-            <div class="space-y-2">
-                <h2 class="text-lg font-semibold text-slate-800">
-                    Template Proposal
-                </h2>
-            </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- LEFT -->
+                <div class="space-y-4">
+                    <div class="space-y-2">
+                        <h2 class="text-lg font-semibold text-slate-800">
+                            Template Proposal
+                        </h2>
+                    </div>
 
-            <div v-if="!isEditable" class="text-xs text-amber-700">
-                Edisi ini tidak aktif. Data hanya bisa dibaca.
-            </div>
+                    <div v-if="!isEditable" class="text-xs text-amber-700">
+                        Edisi ini tidak aktif. Data hanya bisa dibaca.
+                    </div>
 
-            <div class="space-y-2">
-                <label class="text-sm font-medium">
-                    Nama file untuk peserta
-                </label>
-                <Input
-                    v-model="form.template_proposal_name"
-                    :disabled="!isEditable"
-                    placeholder="Contoh: Template Proposal GEMASI 2026"
-                />
-            </div>
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">
+                            Nama file untuk peserta
+                        </label>
 
-            <div class="space-y-2">
-                <label class="text-sm font-medium">
-                    Link template proposal (Google Docs)
-                </label>
-                <Input
-                    v-model="form.template_proposal_url"
-                    :disabled="!isEditable"
-                    placeholder="https://docs.google.com/document/d/.../edit"
-                />
-                <div class="text-xs text-slate-500">
-                    <template v-if="page.props.templateProposal?.url">
-                        Template tersimpan:
-                        <a
-                            :href="page.props.templateProposal.url"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="text-slate-700 underline"
+                        <Input
+                            v-model="form.template_proposal_name"
+                            :disabled="!isEditable"
+                            placeholder="Contoh: Template Proposal GEMASI 2026"
+                        />
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium">
+                            Link template proposal (Google Docs)
+                        </label>
+
+                        <Input
+                            v-model="form.template_proposal_url"
+                            :disabled="!isEditable"
+                            placeholder="https://docs.google.com/document/d/.../edit"
+                        />
+
+                        <div class="text-xs text-slate-500">
+                            <template v-if="page.props.templateProposal?.url">
+                                Template tersimpan:
+                                <a
+                                    :href="page.props.templateProposal.url"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="text-slate-700 underline"
+                                >
+                                    {{
+                                        page.props.templateProposal.nama ||
+                                        "Lihat"
+                                    }}
+                                </a>
+                            </template>
+
+                            <template v-else>
+                                Belum ada template tersimpan.
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end pt-2">
+                        <Button
+                            :disabled="form.processing || !isEditable"
+                            @click="submit"
                         >
-                            {{ page.props.templateProposal.nama || "Lihat" }}
+                            <Spinner v-if="form.processing" class="h-4 w-4" />
+
+                            <span v-else> Simpan Template </span>
+                        </Button>
+                    </div>
+                </div>
+
+                <!-- RIGHT -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium">
+                            Preview Template
+                        </label>
+
+                        <a
+                            v-if="templatePreviewUrl"
+                            :href="templatePreviewUrl"
+                            target="_blank"
+                            class="text-xs text-slate-600 underline"
+                        >
+                            Buka Preview
                         </a>
-                    </template>
-                    <template v-else>
-                        Belum ada template tersimpan.
-                    </template>
-                </div>
-            </div>
+                    </div>
 
-            <div v-if="templatePreviewUrl" class="space-y-2">
-                <label class="text-sm font-medium">Preview</label>
-                <div
-                    class="rounded-lg border border-slate-200 overflow-hidden bg-white"
-                >
-                    <iframe
-                        :src="templatePreviewUrl"
-                        class="w-full h-[420px]"
-                        loading="lazy"
-                        referrerpolicy="no-referrer"
-                    />
-                </div>
-                <p class="text-xs text-slate-500">
-                    Pastikan link dapat diakses publik agar preview tampil.
-                </p>
-            </div>
+                    <div
+                        class="rounded-xl border border-slate-200 overflow-hidden bg-slate-50 min-h-[500px]"
+                    >
+                        <iframe
+                            v-if="templatePreviewUrl"
+                            :src="templatePreviewUrl"
+                            class="w-full h-[500px]"
+                            loading="lazy"
+                            referrerpolicy="no-referrer"
+                        />
 
-            <div class="flex justify-end">
-                <Button :disabled="form.processing || !isEditable" @click="submit">
-                    {{ form.processing ? "Menyimpan..." : "Simpan Template" }}
-                </Button>
+                        <div
+                            v-else
+                            class="h-[500px] flex items-center justify-center text-sm text-slate-400"
+                        >
+                            Preview template akan tampil di sini
+                        </div>
+                    </div>
+
+                    <p class="text-xs text-slate-500">
+                        Pastikan link dapat diakses publik agar preview tampil.
+                    </p>
+                </div>
             </div>
         </div>
     </div>

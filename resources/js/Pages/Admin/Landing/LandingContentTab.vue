@@ -15,10 +15,14 @@ type LandingForm = {
     hero_title: string | null;
     hero_subtitle: string | null;
     about_text: string | null;
+    video_file_url?: string | null;
+    video_file_name?: string | null;
+    video_url: string | null;
     cta_badge: string | null;
     cta_label: string | null;
     cta_url: string | null;
     faq_items: Array<{ q: string; a: string }>;
+    video_file?: File | null;
 };
 
 const props = defineProps<{
@@ -29,11 +33,11 @@ const props = defineProps<{
 </script>
 
 <template>
-    <Card>
-        <CardHeader>
+    <Card class="rounded-2xl border-slate-200">
+        <CardHeader class="space-y-1">
             <CardTitle>Konten Landing</CardTitle>
         </CardHeader>
-        <CardContent class="space-y-4">
+        <CardContent class="space-y-5">
             <div class="grid gap-3 md:grid-cols-2">
                 <div class="space-y-1">
                     <label class="text-xs text-slate-500">Hero Badge</label>
@@ -65,6 +69,54 @@ const props = defineProps<{
                     class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     placeholder="Deskripsi singkat tentang GEMASI"
                 />
+            </div>
+
+            <div class="grid gap-3 md:grid-cols-2">
+                <div class="space-y-1">
+                    <label class="text-xs text-slate-500">
+                        Upload Video Motion Graphic
+                    </label>
+                    <input
+                        type="file"
+                        accept="video/mp4,video/webm,video/ogg,video/*"
+                        class="block w-full rounded-md border border-input bg-background text-sm text-slate-700 file:mr-4 file:cursor-pointer file:rounded-md file:border-slate-200 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-slate-50"
+                        @change="
+                            props.form.video_file =
+                                ($event.target as HTMLInputElement)
+                                    .files?.[0] ?? null
+                        "
+                    />
+                    <p
+                        v-if="props.form.video_file_url"
+                        class="text-xs text-slate-500"
+                    >
+                        Video saat ini:
+                        <a
+                            href="/admin/landing/video/preview"
+                            target="_blank"
+                            class="text-indigo-600 hover:underline"
+                        >
+                            {{ props.form.video_file_name || "Preview video" }}
+                        </a>
+                    </p>
+                    <p class="text-xs text-slate-500">
+                        Upload file video untuk dipakai di landing. Jika diisi
+                        juga link YouTube, file upload tetap diprioritaskan.
+                    </p>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-xs text-slate-500">
+                        Atau link video / YouTube
+                    </label>
+                    <Input
+                        v-model="props.form.video_url"
+                        placeholder="Link YouTube atau file video, contoh https://..."
+                    />
+                    <p class="text-xs text-slate-500">
+                        Bisa diisi link YouTube atau file video langsung.
+                    </p>
+                </div>
             </div>
 
             <div class="grid gap-3 md:grid-cols-2">
@@ -128,7 +180,7 @@ const props = defineProps<{
                         <textarea
                             v-model="item.a"
                             rows="3"
-                            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                             placeholder="Jawaban"
                         />
                     </div>

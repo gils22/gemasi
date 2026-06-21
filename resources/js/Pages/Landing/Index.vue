@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { usePage } from "@inertiajs/vue3";
 import LandingLayout from "@/Layouts/LandingLayout.vue";
 import TentangSection from "@/components/landing/sections/TentangSection.vue";
+import MotionGraphicSection from "@/components/landing/sections/MotionGraphicSection.vue";
 import TimerSection from "@/components/landing/sections/TimerSection.vue";
 import KategoriSection from "@/components/landing/sections/KategoriSection.vue";
 import TimelineSection from "@/components/landing/sections/TimelineSection.vue";
@@ -15,6 +16,9 @@ type LandingPayload = {
     hero_title: string | null;
     hero_subtitle: string | null;
     about_text: string | null;
+    video_file_url?: string | null;
+    video_stream_url?: string | null;
+    video_url: string | null;
     cta_badge: string | null;
     cta_label: string | null;
     cta_url: string | null;
@@ -26,7 +30,8 @@ type KategoriLanding = {
     nama: string;
     slug: string | null;
     deskripsi: string | null;
-    weights?: Array<{ label: string; point: number }>;
+    icon_url?: string | null;
+    weights?: Array<{ label: string; point: number; description?: string }>;
 };
 
 type TimelineLanding = {
@@ -36,18 +41,19 @@ type TimelineLanding = {
     selesai_pada: string | null;
     is_tba: boolean;
     deskripsi: string | null;
-    urutan: number | null;
 };
 
 const page = usePage<
     PageProps & {
         landing?: LandingPayload | null;
         kategoriLanding?: KategoriLanding[];
+        galleryLanding?: Array<{ name: string; preview_url: string }>;
         timelineLanding?: TimelineLanding[];
     }
 >();
 const landing = computed(() => page.props.landing ?? null);
 const kategoriLanding = computed(() => page.props.kategoriLanding ?? []);
+const galleryLanding = computed(() => page.props.galleryLanding ?? []);
 const timelineLanding = computed(() => page.props.timelineLanding ?? []);
 </script>
 
@@ -56,11 +62,20 @@ const timelineLanding = computed(() => page.props.timelineLanding ?? []);
         <div class="min-h-screen w-full bg-white">
             <div class="relative overflow-hidden">
                 <div class="relative z-10">
-                <TentangSection :landing="landing" />
-                <TimerSection :items="timelineLanding" />
-                <KategoriSection :categories="kategoriLanding" />
-                <TimelineSection :items="timelineLanding" />
-                <FaqSection :faqs="landing ? landing.faq_items : undefined" />
+                    <TentangSection :landing="landing" />
+                    <MotionGraphicSection
+                        :video-src="
+                            landing?.video_stream_url ||
+                            landing?.video_file_url ||
+                            landing?.video_url
+                        "
+                    />
+                    <KategoriSection :categories="kategoriLanding" />
+                    <TimerSection :items="timelineLanding" />
+                    <TimelineSection :items="timelineLanding" />
+                    <FaqSection
+                        :faqs="landing ? landing.faq_items : undefined"
+                    />
                 </div>
             </div>
         </div>

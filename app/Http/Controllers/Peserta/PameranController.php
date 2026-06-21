@@ -14,6 +14,41 @@ use Inertia\Inertia;
 
 class PameranController extends Controller
 {
+    private function normalizedEmail(?string $email): string
+    {
+        return strtolower(trim((string) $email));
+    }
+
+    private function isCurrentUserMemberOfKarya(KaryaPeserta $karya, ?string $email): bool
+    {
+        $email = $this->normalizedEmail($email);
+        if ($email === '') {
+            return false;
+        }
+
+        return collect($karya->anggota_tim ?? [])->contains(function ($anggota) use ($email) {
+            if (!is_array($anggota)) {
+                return false;
+            }
+
+            return $this->normalizedEmail($anggota['email'] ?? null) === $email;
+        });
+    }
+
+    private function canAccessKarya(Request $request, KaryaPeserta $karya): bool
+    {
+        $user = $request->user();
+        if (!$user) {
+            return false;
+        }
+
+        if ((int) $karya->user_id === (int) $user->id) {
+            return true;
+        }
+
+        return $this->isCurrentUserMemberOfKarya($karya, $user->email);
+    }
+
     private function resolveEdisiByKarya(KaryaPeserta $karya): Edition
     {
         return Edition::query()->findOrFail($karya->edisi_lomba_id);
@@ -51,7 +86,18 @@ class PameranController extends Controller
             ->where('edisi_lomba_id', $edisi->id)
             ->where('fase_kunci', 'pameran_karya')
             ->where('aktif', true)
-            ->orderBy('urutan')
+            ->orderByRaw("CASE fase_kunci
+                WHEN 'opening' THEN 1
+                WHEN 'pendaftaran' THEN 2
+                WHEN 'penjurian_tahap_1' THEN 3
+                WHEN 'pengumuman_nominasi' THEN 4
+                WHEN 'pameran_karya' THEN 5
+                WHEN 'penjurian_tahap_2' THEN 6
+                WHEN 'awarding' THEN 7
+                ELSE 99
+            END")
+            ->orderByRaw('CASE WHEN mulai_pada IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('mulai_pada')
             ->orderBy('id')
             ->get(['mulai_pada', 'selesai_pada', 'is_tba']);
 
@@ -96,7 +142,13 @@ class PameranController extends Controller
     public function index(Request $request)
     {
         $punyaPameranArsip = KaryaPeserta::query()
-            ->where('user_id', (int) $request->user()->id)
+            ->where(function ($query) use ($request) {
+                $query->where('user_id', (int) $request->user()->id)
+                    ->orWhereRaw(
+                        "JSON_SEARCH(anggota_tim, 'one', ?, NULL, '$[*].email') IS NOT NULL",
+                        [$request->user()->email],
+                    );
+            })
             ->where('lolos_nominasi', true)
             ->whereHas('edisi', function ($query) {
                 $query->where('status', 'arsip');
@@ -116,7 +168,13 @@ class PameranController extends Controller
         [$bolehEdit, $batas] = $this->pameranMasihDibuka($edisi);
         $nominasi = KaryaPeserta::query()
             ->where('edisi_lomba_id', $edisi->id)
-            ->where('user_id', (int) $request->user()->id)
+            ->where(function ($query) use ($request) {
+                $query->where('user_id', (int) $request->user()->id)
+                    ->orWhereRaw(
+                        "JSON_SEARCH(anggota_tim, 'one', ?, NULL, '$[*].email') IS NOT NULL",
+                        [$request->user()->email],
+                    );
+            })
             ->where('lolos_nominasi', true)
             ->orderByDesc('updated_at')
             ->get()
@@ -151,7 +209,7 @@ class PameranController extends Controller
         $edisi = $this->resolveEdisiByKarya($karya);
         [$bolehEdit] = $this->pameranMasihDibuka($edisi);
         abort_unless($bolehEdit, 403, 'Pengumpulan pameran sudah ditutup.');
-        abort_unless((int) $karya->user_id === (int) $request->user()->id, 403);
+        abort_unless($this->canAccessKarya($request, $karya), 403);
         abort_unless((int) $karya->edisi_lomba_id === (int) $edisi->id, 403);
         abort_unless($karya->lolos_nominasi, 403);
 
@@ -192,13 +250,13 @@ class PameranController extends Controller
 
         $karya->save();
 
-        return redirect()->back()->with('success', 'Data pameran berhasil disimpan.');
+        return redirect()->back()->with('success', 'Data pameran berhasil diperbarui.');
     }
 
     public function previewLogo(Request $request, KaryaPeserta $karya)
     {
         $edisi = $this->resolveEdisiByKarya($karya);
-        abort_unless((int) $karya->user_id === (int) $request->user()->id, 403);
+        abort_unless($this->canAccessKarya($request, $karya), 403);
         abort_unless((int) $karya->edisi_lomba_id === (int) $edisi->id, 403);
         abort_unless($karya->lolos_nominasi, 403);
         abort_unless($karya->pameran_logo_path, 404);

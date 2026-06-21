@@ -8,12 +8,18 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { computed, reactive, ref, watch } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 import type { PageProps } from "@/types/inertia";
-import { SquarePen } from "lucide-vue-next";
+import { Eye, SquarePen } from "lucide-vue-next";
 import PameranModal from "@/Pages/Peserta/Pameran/PameranModal.vue";
 
 type PameranItem = {
@@ -378,19 +384,33 @@ defineOptions({
             </template>
 
             <template #actions="{ row }">
-                <Button size="icon" variant="outline" @click="openEdit(row)">
-                    <SquarePen class="h-4 w-4" />
-                </Button>
-                <PameranModal
-                    v-model:open="editOpen[row.id]"
-                    :item="row"
-                    :state="ensureState(row)"
-                    :attempt="modalAttempt[row.id]"
-                    :boleh-edit="true"
-                    :get-video-preview="getVideoPreview"
-                    @logo-change="(e) => handleLogoChange(row, e)"
-                    @save="simpanPameran(row)"
-                />
+                <TooltipProvider :delay-duration="150">
+                    <Tooltip>
+                        <TooltipTrigger as-child>
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                @click="openEdit(row)"
+                            >
+                                <Eye class="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Detail Pameran</p>
+                        </TooltipContent>
+                    </Tooltip>
+
+                    <PameranModal
+                        v-model:open="editOpen[row.id]"
+                        :item="row"
+                        :state="ensureState(row)"
+                        :attempt="modalAttempt[row.id]"
+                        :boleh-edit="true"
+                        :get-video-preview="getVideoPreview"
+                        @logo-change="(e) => handleLogoChange(row, e)"
+                        @save="simpanPameran(row)"
+                    />
+                </TooltipProvider>
             </template>
         </DataTable>
     </div>

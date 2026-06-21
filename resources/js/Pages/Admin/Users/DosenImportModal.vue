@@ -285,8 +285,8 @@ const submit = async () => {
                     :disabled="processing || readonly"
                     @click="submit"
                 >
-                    <Spinner v-if="processing" class="mr-2" />
-                    Import
+                    <Spinner v-if="processing" class="h-4 w-4" />
+                    <span v-else>Import</span>
                 </Button>
             </DialogFooter>
         </DialogContent>

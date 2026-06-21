@@ -17,8 +17,9 @@ class TimelineLomba extends Model
         'selesai_pada',
         'is_tba',
         'deskripsi',
-        'urutan',
         'aktif',
+        'nominasi_email_queued_at',
+        'nominasi_email_sent_at',
     ];
 
     protected function casts(): array
@@ -28,6 +29,8 @@ class TimelineLomba extends Model
             'selesai_pada' => 'datetime',
             'is_tba' => 'boolean',
             'aktif' => 'boolean',
+            'nominasi_email_queued_at' => 'datetime',
+            'nominasi_email_sent_at' => 'datetime',
         ];
     }
 
@@ -36,4 +39,3 @@ class TimelineLomba extends Model
         return $this->belongsTo(Edition::class, 'edisi_lomba_id');
     }
 }
-

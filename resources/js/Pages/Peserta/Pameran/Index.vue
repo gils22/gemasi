@@ -188,12 +188,12 @@ const getVideoPreview = (url: string) => {
                 </h1>
                 <p class="text-xs text-slate-500">{{ edisiLabel }}</p>
             </div>
-            <p v-if="!bolehEdit" class="text-xs text-rose-600">
-                Pengumpulan ditutup.
-                <span v-if="batasPengumpulan"
-                    >Batas: {{ batasPengumpulan }}.</span
-                >
-            </p>
+            <div
+                v-if="!bolehEdit"
+                class="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            >
+                Pengumpulan pameran sudah ditutup.
+            </div>
         </div>
 
         <div
@@ -201,7 +201,8 @@ const getVideoPreview = (url: string) => {
             class="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500"
         >
             <span v-if="punyaPameranArsip">
-                Data pameran dapat dilihat di menu Arsip.
+                Data pameran yang sudah terkirim tetap bisa dilihat pada kartu
+                arsip karya yang berlabel Juara.
             </span>
             <span v-else>
                 Belum ada karya yang lolos nominasi pada edisi ini.

@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, Plus, Trash2 } from "lucide-vue-next";
 import DashboardLayout from "@/Layouts/DashboardLayout.vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 
 type Edisi = {
     id: number;
@@ -174,7 +175,8 @@ defineOptions({
                     :disabled="form.processing || !isEditable || isKetentuanInvalid"
                     @click="submit"
                 >
-                    {{ form.processing ? "Menyimpan..." : "Simpan Ketentuan" }}
+                    <Spinner v-if="form.processing" class="h-4 w-4" />
+                    <span v-else>Simpan Ketentuan</span>
                 </Button>
             </div>
         </div>

@@ -128,6 +128,6 @@ class PameranController extends Controller
 
         $karya->save();
 
-        return redirect()->back()->with('success', 'Data pameran berhasil diperbarui.');
+        return redirect()->back()->with('success', 'Data pameran karya berhasil diperbarui.');
     }
 }

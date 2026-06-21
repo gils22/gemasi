@@ -26,7 +26,8 @@ type LandingTimeline = {
 type BobotLanding = {
     kategori_lomba_id: number;
     nama_kategori: string;
-    kriteria: Array<{ nama: string; poin: number }>;
+    icon_url?: string | null;
+    kriteria: Array<{ nama: string; poin: number; deskripsi?: string }>;
 };
 
 type TemplateProposal = {
@@ -49,11 +50,17 @@ const props = defineProps<{
     ketentuanLanding: string[];
     templateProposal: TemplateProposal | null;
     timeline: LandingTimeline[];
+    tabClass?: (
+        value: "kategori" | "bobot" | "ketentuan" | "template" | "timeline",
+    ) => string;
 }>();
 
 const emit = defineEmits<{
     (e: "update:edisiValue", value: string): void;
-    (e: "update:activeTab", value: "kategori" | "bobot" | "ketentuan" | "template" | "timeline"): void;
+    (
+        e: "update:activeTab",
+        value: "kategori" | "bobot" | "ketentuan" | "template" | "timeline",
+    ): void;
 }>();
 
 const localEdisi = computed({
@@ -63,17 +70,18 @@ const localEdisi = computed({
 
 const localTab = computed({
     get: () => props.activeTab,
-    set: (value: "kategori" | "bobot" | "ketentuan" | "template" | "timeline") =>
-        emit("update:activeTab", value),
+    set: (
+        value: "kategori" | "bobot" | "ketentuan" | "template" | "timeline",
+    ) => emit("update:activeTab", value),
 });
 </script>
 
 <template>
-    <Card>
-        <CardHeader>
+    <Card class="rounded-2xl border-slate-200">
+        <CardHeader class="space-y-1">
             <CardTitle>Pengaturan Edisi Data</CardTitle>
         </CardHeader>
-        <CardContent class="space-y-2 text-sm text-slate-600">
+        <CardContent class="space-y-3 text-sm text-slate-600">
             <p class="text-xs text-slate-500">
                 Pilih edisi untuk data kategori, timeline, dan bobot di landing.
             </p>
@@ -95,16 +103,12 @@ const localTab = computed({
         </CardContent>
     </Card>
 
-    <div class="space-y-3">
+    <div class="space-y-3 mt-3">
         <div class="flex flex-wrap items-center gap-2">
             <button
                 type="button"
                 class="rounded-lg border px-3 py-2 text-sm font-semibold transition"
-                :class="
-                    localTab === 'kategori'
-                        ? 'border-slate-900 bg-white text-slate-900'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
-                "
+                :class="props.tabClass?.('kategori') || ''"
                 @click="localTab = 'kategori'"
             >
                 Kategori
@@ -112,11 +116,7 @@ const localTab = computed({
             <button
                 type="button"
                 class="rounded-lg border px-3 py-2 text-sm font-semibold transition"
-                :class="
-                    localTab === 'bobot'
-                        ? 'border-slate-900 bg-white text-slate-900'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
-                "
+                :class="props.tabClass?.('bobot') || ''"
                 @click="localTab = 'bobot'"
             >
                 Bobot Penilaian
@@ -124,11 +124,7 @@ const localTab = computed({
             <button
                 type="button"
                 class="rounded-lg border px-3 py-2 text-sm font-semibold transition"
-                :class="
-                    localTab === 'ketentuan'
-                        ? 'border-slate-900 bg-white text-slate-900'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
-                "
+                :class="props.tabClass?.('ketentuan') || ''"
                 @click="localTab = 'ketentuan'"
             >
                 Ketentuan Umum
@@ -136,11 +132,7 @@ const localTab = computed({
             <button
                 type="button"
                 class="rounded-lg border px-3 py-2 text-sm font-semibold transition"
-                :class="
-                    localTab === 'template'
-                        ? 'border-slate-900 bg-white text-slate-900'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
-                "
+                :class="props.tabClass?.('template') || ''"
                 @click="localTab = 'template'"
             >
                 Template Proposal
@@ -148,18 +140,14 @@ const localTab = computed({
             <button
                 type="button"
                 class="rounded-lg border px-3 py-2 text-sm font-semibold transition"
-                :class="
-                    localTab === 'timeline'
-                        ? 'border-slate-900 bg-white text-slate-900'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
-                "
+                :class="props.tabClass?.('timeline') || ''"
                 @click="localTab = 'timeline'"
             >
                 Timeline
             </button>
         </div>
 
-        <Card>
+        <Card class="rounded-2xl border-slate-200">
             <CardContent class="space-y-2 text-sm text-slate-600">
                 <div v-if="localTab === 'kategori'" class="space-y-2">
                     <div v-if="props.kategori.length" class="space-y-2">
@@ -178,7 +166,11 @@ const localTab = computed({
                             </div>
                             <span
                                 class="text-xs font-semibold"
-                                :class="item.aktif ? 'text-emerald-600' : 'text-slate-400'"
+                                :class="
+                                    item.aktif
+                                        ? 'text-emerald-600'
+                                        : 'text-slate-400'
+                                "
                             >
                                 {{ item.aktif ? "Aktif" : "Nonaktif" }}
                             </span>
@@ -196,19 +188,56 @@ const localTab = computed({
                             :key="item.kategori_lomba_id"
                             class="rounded-lg border border-slate-200 bg-white px-3 py-2"
                         >
-                            <p class="font-semibold text-slate-900">
-                                {{ item.nama_kategori }}
-                            </p>
-                            <div v-if="item.kriteria.length" class="mt-2 space-y-1">
+                            <div class="flex items-center gap-3">
+                                <div
+                                    class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                                >
+                                    <img
+                                        v-if="item.icon_url"
+                                        :src="item.icon_url"
+                                        alt="Icon kategori"
+                                        class="h-full w-full object-cover"
+                                    />
+                                    <span v-else class="text-xs text-slate-400"
+                                        >-</span
+                                    >
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-slate-900">
+                                        {{ item.nama_kategori }}
+                                    </p>
+                                    <p class="text-[11px] text-slate-500">
+                                        Icon kategori
+                                    </p>
+                                </div>
+                            </div>
+                            <div
+                                v-if="item.kriteria.length"
+                                class="mt-2 space-y-1"
+                            >
                                 <div
                                     v-for="(kriteria, idx) in item.kriteria"
                                     :key="`${item.kategori_lomba_id}-${idx}`"
-                                    class="flex items-center justify-between text-xs text-slate-600"
+                                    class="rounded-md border border-slate-100 px-2 py-2 text-xs text-slate-600"
                                 >
-                                    <span>{{ kriteria.nama }}</span>
-                                    <span class="font-semibold text-slate-900">
-                                        {{ kriteria.poin }}
-                                    </span>
+                                    <div
+                                        class="flex items-start justify-between gap-2"
+                                    >
+                                        <div>
+                                            <span>{{ kriteria.nama }}</span>
+                                            <p
+                                                v-if="kriteria.deskripsi"
+                                                class="mt-1 text-[11px] text-slate-500"
+                                            >
+                                                {{ kriteria.deskripsi }}
+                                            </p>
+                                        </div>
+                                        <span
+                                            class="font-semibold text-slate-900"
+                                        >
+                                            {{ kriteria.poin }}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                             <p v-else class="mt-2 text-xs text-slate-500">
@@ -226,7 +255,10 @@ const localTab = computed({
                         v-if="props.ketentuanLanding.length"
                         class="list-disc space-y-1 pl-5 text-sm text-slate-600"
                     >
-                        <li v-for="(item, idx) in props.ketentuanLanding" :key="idx">
+                        <li
+                            v-for="(item, idx) in props.ketentuanLanding"
+                            :key="idx"
+                        >
                             {{ item }}
                         </li>
                     </ul>
@@ -238,7 +270,10 @@ const localTab = computed({
                 <div v-else-if="localTab === 'template'" class="space-y-2">
                     <div v-if="props.templateProposal?.url" class="space-y-1">
                         <p class="text-sm font-semibold text-slate-900">
-                            {{ props.templateProposal.nama || "Template Proposal" }}
+                            {{
+                                props.templateProposal.nama ||
+                                "Template Proposal"
+                            }}
                         </p>
                         <a
                             :href="props.templateProposal.url"
@@ -271,7 +306,11 @@ const localTab = computed({
                             </div>
                             <span
                                 class="text-xs font-semibold"
-                                :class="item.aktif ? 'text-emerald-600' : 'text-slate-400'"
+                                :class="
+                                    item.aktif
+                                        ? 'text-emerald-600'
+                                        : 'text-slate-400'
+                                "
                             >
                                 {{ item.aktif ? "Aktif" : "Nonaktif" }}
                             </span>

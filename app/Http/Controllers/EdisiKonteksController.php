@@ -31,6 +31,6 @@ class EdisiKonteksController extends Controller
 
         session(['edisi_aktif_id' => $edisi->id]);
 
-        return redirect()->back()->with('success', 'Edisi berhasil diganti.');
+        return redirect()->back()->with('success', 'Edisi aktif berhasil diganti.');
     }
 }

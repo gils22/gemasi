@@ -71,7 +71,14 @@ const setActive = (value: string) => {
                     class="flex h-6 w-6 items-center justify-center rounded-md sm:h-7 sm:w-7"
                     :class="item.accent"
                 >
+                    <img
+                        v-if="typeof item.icon === 'string'"
+                        :src="item.icon"
+                        alt=""
+                        class="h-full w-full rounded-md object-cover"
+                    />
                     <component
+                        v-else
                         :is="item.icon"
                         class="h-3.5 w-3.5 sm:h-4 sm:w-4"
                     />

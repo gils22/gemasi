@@ -3,7 +3,6 @@ import {
     FileText,
     Image,
     Archive,
-    Trophy,
 } from "lucide-vue-next";
 import type { MenuItem } from "@/types/menu";
 
@@ -22,11 +21,6 @@ export const peserta: MenuItem[] = [
         label: "Pameran Karya",
         href: "/peserta/pameran-karya",
         icon: Image,
-    },
-    {
-        label: "Juara",
-        href: "/peserta/juara",
-        icon: Trophy,
     },
     {
         label: "Arsip",

@@ -54,11 +54,14 @@ defineEmits<{
             </div>
 
             <div v-else-if="detail" class="space-y-4">
-                <div>
-                    <h3 class="text-base font-semibold text-slate-900">
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        Nama Karya
+                    </p>
+                    <h3 class="mt-1 text-lg font-semibold text-slate-900">
                         {{ detail.nama_karya }}
                     </h3>
-                    <p class="text-sm text-slate-500">
+                    <p class="mt-1 text-sm text-slate-500">
                         {{ detail.nama_kategori }}
                     </p>
                 </div>

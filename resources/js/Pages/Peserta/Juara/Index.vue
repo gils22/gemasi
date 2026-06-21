@@ -288,9 +288,9 @@ const saveEdit = (item: WinnerItem) => {
                             >
                                 <Spinner
                                     v-if="editSaving[item.karya_id] === true"
-                                    class="mr-2"
+                                    class="h-4 w-4"
                                 />
-                                Simpan
+                                <span v-else>Simpan</span>
                             </Button>
                         </template>
 

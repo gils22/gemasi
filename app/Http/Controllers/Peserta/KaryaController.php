@@ -19,6 +19,91 @@ use Inertia\Inertia;
 
 class KaryaController extends Controller
 {
+    private function normalizedEmail(?string $email): string
+    {
+        return strtolower(trim((string) $email));
+    }
+
+    private function isCurrentUserMemberOfKarya(KaryaPeserta $karya, ?string $email): bool
+    {
+        $email = $this->normalizedEmail($email);
+        if ($email === '') {
+            return false;
+        }
+
+        return collect($karya->anggota_tim ?? [])->contains(function ($anggota) use ($email) {
+            if (!is_array($anggota)) {
+                return false;
+            }
+
+            return $this->normalizedEmail($anggota['email'] ?? null) === $email;
+        });
+    }
+
+    private function canAccessKarya(Request $request, KaryaPeserta $karya): bool
+    {
+        $user = $request->user();
+        if (!$user) {
+            return false;
+        }
+
+        if ((int) $karya->user_id === (int) $user->id) {
+            return true;
+        }
+
+        return $this->isCurrentUserMemberOfKarya($karya, $user->email);
+    }
+
+    private function normalizeAnggotaTim(array $anggotaTim): array
+    {
+        return collect($anggotaTim)
+            ->map(function ($anggota, $index) {
+                $nama = trim((string) ($anggota['nama'] ?? ''));
+                $email = strtolower(trim((string) ($anggota['email'] ?? '')));
+                $peran = trim((string) ($anggota['peran'] ?? ''));
+                $nim = trim((string) ($anggota['nim'] ?? ''));
+
+                return [
+                    'nim' => $nim !== '' ? $nim : null,
+                    'nama' => $nama,
+                    'email' => $email !== '' ? $email : null,
+                    'peran' => $peran !== '' ? $peran : ($index === 0 ? 'ketua' : 'anggota'),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function validateAnggotaTim(array $anggotaTim): void
+    {
+        $anggota = collect($anggotaTim);
+
+        abort_unless($anggota->where('peran', 'ketua')->count() === 1, 422, 'Harus ada tepat satu ketua tim.');
+
+        $emails = $anggota->pluck('email')
+            ->filter()
+            ->map(fn ($email) => strtolower(trim((string) $email)));
+
+        abort_if($emails->duplicates()->isNotEmpty(), 422, 'Email anggota tim tidak boleh duplikat.');
+    }
+
+    private function resolvePeranAkses(KaryaPeserta $karya, ?string $email): string
+    {
+        $email = $this->normalizedEmail($email);
+        $anggota = collect($karya->anggota_tim ?? []);
+        $ketua = $anggota->firstWhere('peran', 'ketua');
+
+        if ((int) $karya->user_id === (int) request()->user()?->id) {
+            return 'ketua';
+        }
+
+        if ($email !== '' && $this->isCurrentUserMemberOfKarya($karya, $email)) {
+            return $this->normalizedEmail($ketua['email'] ?? null) === $email ? 'ketua' : 'anggota';
+        }
+
+        return 'anggota';
+    }
+
     private function resolveKaryaByUser(Request $request, int $karyaId): ?KaryaPeserta
     {
         if ($karyaId <= 0) {
@@ -28,7 +113,13 @@ class KaryaController extends Controller
         return KaryaPeserta::query()
             ->with(['lampiran', 'edisi'])
             ->where('id', $karyaId)
-            ->where('user_id', (int) $request->user()->id)
+            ->where(function ($query) use ($request) {
+                $query->where('user_id', (int) $request->user()->id)
+                    ->orWhereRaw(
+                        "JSON_SEARCH(anggota_tim, 'one', ?, NULL, '$[*].email') IS NOT NULL",
+                        [$this->normalizedEmail($request->user()->email)],
+                    );
+            })
             ->first();
     }
 
@@ -41,7 +132,13 @@ class KaryaController extends Controller
         return KaryaPeserta::query()
             ->where('id', $karyaId)
             ->where('edisi_lomba_id', $edisi->id)
-            ->where('user_id', (int) $request->user()->id)
+            ->where(function ($query) use ($request) {
+                $query->where('user_id', (int) $request->user()->id)
+                    ->orWhereRaw(
+                        "JSON_SEARCH(anggota_tim, 'one', ?, NULL, '$[*].email') IS NOT NULL",
+                        [$this->normalizedEmail($request->user()->email)],
+                    );
+            })
             ->first();
     }
 
@@ -81,7 +178,17 @@ class KaryaController extends Controller
         }
 
         if (array_key_exists('anggotaTim', $validated)) {
-            $karya->anggota_tim = $validated['anggotaTim'];
+            $karya->anggota_tim = $this->normalizeAnggotaTim($validated['anggotaTim']);
+        }
+
+        if (array_key_exists('proposalLink', $validated)) {
+            $karya->proposal_path = trim((string) $validated['proposalLink']) !== ''
+                ? trim((string) $validated['proposalLink'])
+                : null;
+        }
+
+        if (array_key_exists('linkTambahan', $validated)) {
+            $karya->link_tambahan = $validated['linkTambahan'] ?? [];
         }
 
         $karya->save();
@@ -115,7 +222,8 @@ class KaryaController extends Controller
             ->where('edisi_lomba_id', $edisi->id)
             ->where('fase_kunci', 'pendaftaran')
             ->where('aktif', true)
-            ->orderBy('urutan')
+            ->orderByRaw('CASE WHEN mulai_pada IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('mulai_pada')
             ->orderBy('id')
             ->get(['mulai_pada', 'selesai_pada', 'is_tba']);
 
@@ -160,10 +268,25 @@ class KaryaController extends Controller
         $pendaftaranDibuka = $this->pendaftaranMasihDibuka($edisi);
         $isBuatBaru = $request->boolean('baru');
         $karyaId = (int) $request->query('karya');
-        $selectedKarya = $this->resolveKaryaByUser($request, $karyaId);
+        $selectedKarya = KaryaPeserta::query()
+            ->with(['lampiran', 'edisi'])
+            ->where('id', $karyaId)
+            ->where('edisi_lomba_id', $edisi->id)
+            ->where(function ($query) use ($request) {
+                $query->where('user_id', (int) $request->user()->id)
+                    ->orWhereRaw(
+                        "JSON_SEARCH(anggota_tim, 'one', ?, NULL, '$[*].email') IS NOT NULL",
+                        [$this->normalizedEmail($request->user()->email)],
+                    );
+            })
+            ->first();
         $isArsipReadOnly = (bool) (
             $selectedKarya &&
             optional($selectedKarya->edisi)->status === 'arsip'
+        );
+        $isMemberOnly = (bool) (
+            $selectedKarya &&
+            (int) $selectedKarya->user_id !== (int) $request->user()->id
         );
 
         if (!$pendaftaranDibuka && !$isArsipReadOnly) {
@@ -181,7 +304,7 @@ class KaryaController extends Controller
 
         $karya = null;
         if (!$isBuatBaru) {
-            if ($isArsipReadOnly) {
+            if ($isArsipReadOnly || $isMemberOnly) {
                 $karya = $selectedKarya;
             } else {
                 $baseQuery = KaryaPeserta::query()
@@ -230,7 +353,8 @@ class KaryaController extends Controller
             'gemasiAktifLabel' => $edisiForm->nama . ' (' . $edisiForm->tahun . ')',
             'karyaDraft' => $karyaDraft,
             'pendaftaranDibuka' => $pendaftaranDibuka && !$isArsipReadOnly,
-            'readOnly' => $isArsipReadOnly,
+            'readOnly' => $isArsipReadOnly || $isMemberOnly,
+            'isArsipReadOnly' => $isArsipReadOnly,
             'templateProposalUrl' => $panduan?->template_proposal_path ?: null,
             'templateProposalName' => $panduan?->template_proposal_nama_tampil,
         ]);
@@ -240,8 +364,15 @@ class KaryaController extends Controller
     {
         $edisiAktif = $this->resolveEdisiAktifOrFail();
         $pendaftaranDibuka = $this->pendaftaranMasihDibuka($edisiAktif);
+        $userEmail = $this->normalizedEmail($request->user()->email);
         $punyaKaryaArsip = KaryaPeserta::query()
-            ->where('user_id', (int) $request->user()->id)
+            ->where(function ($query) use ($request, $userEmail) {
+                $query->where('user_id', (int) $request->user()->id)
+                    ->orWhereRaw(
+                        "JSON_SEARCH(anggota_tim, 'one', ?, NULL, '$[*].email') IS NOT NULL",
+                        [$userEmail],
+                    );
+            })
             ->where(function ($query) {
                 $query->whereNotNull('archived_at')
                     ->orWhereHas('edisi', function ($q) {
@@ -252,14 +383,20 @@ class KaryaController extends Controller
 
         $karya = KaryaPeserta::query()
             ->with(['lampiran', 'edisi'])
-            ->where('user_id', (int) $request->user()->id)
+            ->where(function ($query) use ($request, $userEmail) {
+                $query->where('user_id', (int) $request->user()->id)
+                    ->orWhereRaw(
+                        "JSON_SEARCH(anggota_tim, 'one', ?, NULL, '$[*].email') IS NOT NULL",
+                        [$userEmail],
+                    );
+            })
             ->whereNull('archived_at')
             ->whereHas('edisi', function ($query) {
                 $query->where('status', '!=', 'arsip');
             })
             ->orderByDesc('updated_at')
             ->get()
-            ->map(function ($item) use ($edisiAktif, $pendaftaranDibuka) {
+            ->map(function ($item) use ($edisiAktif, $pendaftaranDibuka, $request) {
                 $anggota = collect($item->anggota_tim ?? []);
                 $ketua = $anggota->firstWhere('peran', 'ketua');
                 return [
@@ -272,18 +409,27 @@ class KaryaController extends Controller
                 'status_tampilan' => $item->status === 'submitted' ? 'Lengkap' : 'Tahap 1 tersimpan',
                 'updated_at' => optional($item->updated_at)->toDateTimeString(),
                 'edisi' => optional($item->edisi)->nama,
-                'dapat_dikelola' => $pendaftaranDibuka && ((int) $item->edisi_lomba_id === (int) $edisiAktif->id),
+                'dapat_dikelola' => $pendaftaranDibuka
+                    && ((int) $item->edisi_lomba_id === (int) $edisiAktif->id)
+                    && (int) $item->user_id === (int) $request->user()->id,
+                'peran_akses' => $this->resolvePeranAkses($item, $request->user()->email),
                 ];
             })
             ->values();
 
         $arsipPendaftaran = KaryaPeserta::query()
             ->with('edisi')
-            ->where('user_id', (int) $request->user()->id)
+            ->where(function ($query) use ($request, $userEmail) {
+                $query->where('user_id', (int) $request->user()->id)
+                    ->orWhereRaw(
+                        "JSON_SEARCH(anggota_tim, 'one', ?, NULL, '$[*].email') IS NOT NULL",
+                        [$userEmail],
+                    );
+            })
             ->whereNotNull('archived_at')
             ->orderByDesc('archived_at')
             ->get()
-            ->map(function ($item) use ($edisiAktif, $pendaftaranDibuka) {
+            ->map(function ($item) use ($edisiAktif, $pendaftaranDibuka, $request) {
                 $anggota = collect($item->anggota_tim ?? []);
                 $ketua = $anggota->firstWhere('peran', 'ketua');
                 return [
@@ -296,7 +442,10 @@ class KaryaController extends Controller
                     'status_tampilan' => 'Diarsipkan',
                     'updated_at' => optional($item->archived_at)->toDateTimeString(),
                     'edisi' => optional($item->edisi)->nama,
-                    'dapat_dikelola' => $pendaftaranDibuka && ((int) $item->edisi_lomba_id === (int) $edisiAktif->id),
+                    'dapat_dikelola' => $pendaftaranDibuka
+                        && ((int) $item->edisi_lomba_id === (int) $edisiAktif->id)
+                        && (int) $item->user_id === (int) $request->user()->id,
+                    'peran_akses' => $this->resolvePeranAkses($item, $request->user()->email),
                 ];
             })
             ->values();
@@ -316,7 +465,7 @@ class KaryaController extends Controller
         abort_unless($this->pendaftaranMasihDibuka($edisi), 403, 'Pendaftaran sudah ditutup.');
 
         abort_unless(
-            (int) $karya->user_id === (int) $request->user()->id && (int) $karya->edisi_lomba_id === (int) $edisi->id,
+            $this->canAccessKarya($request, $karya) && (int) $karya->edisi_lomba_id === (int) $edisi->id,
             403
         );
 
@@ -348,7 +497,11 @@ class KaryaController extends Controller
 
         $karya = $this->persistDraft($request, $edisi, $validated);
 
-        return redirect()->back()->with('karya_id', $karya->id)->setStatusCode(303);
+        return redirect()
+            ->back()
+            ->with('karya_id', $karya->id)
+            ->with('success', 'Draft tahap 1 berhasil disimpan.')
+            ->setStatusCode(303);
     }
 
     public function simpanDraftPerTahap(Request $request)
@@ -357,7 +510,7 @@ class KaryaController extends Controller
         abort_unless($this->pendaftaranMasihDibuka($edisi), 403, 'Pendaftaran sudah ditutup.');
 
         $step = (int) $request->input('step', 1);
-        abort_unless(in_array($step, [1, 2], true), 422, 'Tahap draft tidak valid.');
+        abort_unless(in_array($step, [1, 2, 3], true), 422, 'Tahap draft tidak valid.');
 
         $rulesByStep = [
             1 => [
@@ -387,9 +540,23 @@ class KaryaController extends Controller
                 'anggotaTim.*.email' => 'required|email|max:255',
                 'anggotaTim.*.peran' => ['required', Rule::in(['ketua', 'anggota'])],
             ],
+            3 => [
+                'id' => 'nullable|integer',
+                'step' => 'required|integer',
+                'proposalLink' => 'required|string|max:2048',
+                'linkTambahan' => 'nullable|array',
+                'linkTambahan.*.label' => 'nullable|string|max:100',
+                'linkTambahan.*.url' => 'nullable|string|max:2048',
+            ],
         ];
 
         $validator = Validator::make($request->all(), $rulesByStep[$step]);
+        $validator->setCustomMessages([
+            'dosenPembimbing.email.email' => 'Email harus valid.',
+            'anggotaTim.*.email.email' => 'Email harus valid.',
+            'anggotaTim.*.nim.regex' => 'NIM hanya boleh angka.',
+            'proposalLink.required' => 'Proposal wajib diisi.',
+        ]);
         if ($step === 2) {
             $validator->after(function ($validator) use ($request) {
                 $anggota = collect($request->input('anggotaTim', []));
@@ -400,9 +567,31 @@ class KaryaController extends Controller
         }
 
         $validated = $validator->validate();
+        if ($step === 2) {
+            $this->validateAnggotaTim($validated['anggotaTim']);
+            $validated['anggotaTim'] = $this->normalizeAnggotaTim($validated['anggotaTim']);
+        } elseif ($step === 3) {
+            $validated['linkTambahan'] = collect($validated['linkTambahan'] ?? [])
+                ->filter(function ($item) {
+                    return is_array($item)
+                        && (trim((string) ($item['label'] ?? '')) !== '' || trim((string) ($item['url'] ?? '')) !== '');
+                })
+                ->map(function ($item) {
+                    return [
+                        'label' => trim((string) ($item['label'] ?? '')),
+                        'url' => trim((string) ($item['url'] ?? '')),
+                    ];
+                })
+                ->values()
+                ->all();
+        }
         $karya = $this->persistDraft($request, $edisi, $validated);
 
-        return redirect()->back()->with('karya_id', $karya->id)->setStatusCode(303);
+        return redirect()
+            ->back()
+            ->with('karya_id', $karya->id)
+            ->with('success', 'Draft tahap ' . $step . ' berhasil disimpan.')
+            ->setStatusCode(303);
     }
 
     public function store(Request $request)
@@ -431,18 +620,18 @@ class KaryaController extends Controller
                     ->where('aktif', true),
             ],
             'namaKarya' => 'required|string|max:255',
-            'waKetua' => 'required|string|max:30',
+            'waKetua' => ['required', 'string', 'max:30', 'regex:/^[0-9+\-\s]+$/'],
             'dosenPembimbing' => 'required|array',
-            'dosenPembimbing.nik' => 'nullable|string|max:50',
+            'dosenPembimbing.nik' => ['nullable', 'string', 'max:50', 'regex:/^[0-9.]+$/'],
             'dosenPembimbing.nama' => 'required|string|max:255',
             'dosenPembimbing.email' => 'required|email|max:255',
             'dosenPembimbing.bidang' => 'required|string|max:255',
             'anggotaTim' => 'required|array|min:1|max:6',
-            'anggotaTim.*.nim' => 'required|string|max:50',
+            'anggotaTim.*.nim' => ['required', 'string', 'max:50', 'regex:/^[0-9.]+$/'],
             'anggotaTim.*.nama' => 'required|string|max:255',
             'anggotaTim.*.email' => 'required|email|max:255',
             'anggotaTim.*.peran' => ['required', Rule::in(['ketua', 'anggota'])],
-            'proposalLink' => 'nullable|string|max:2048',
+            'proposalLink' => 'required|string|max:2048',
             'linkTambahan' => 'nullable|array',
             'linkTambahan.*.label' => 'nullable|string|max:100',
             'linkTambahan.*.url' => 'nullable|string|max:2048',
@@ -450,6 +639,18 @@ class KaryaController extends Controller
             'lampiran.*.id' => 'nullable|integer',
             'lampiran.*.deskripsi' => 'nullable|string',
             'lampiran.*.file' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx,ppt,pptx|max:5120',
+        ], [
+            'kategori.required' => 'Kategori wajib diisi.',
+            'namaKarya.required' => 'Nama karya wajib diisi.',
+            'waKetua.required' => 'Nomor WA wajib diisi.',
+            'waKetua.regex' => 'Nomor WA harus angka.',
+            'dosenPembimbing.email.required' => 'Email dosen pembimbing wajib diisi.',
+            'dosenPembimbing.email.email' => 'Email harus valid.',
+            'anggotaTim.*.nim.required' => 'NIM wajib diisi.',
+            'anggotaTim.*.nim.regex' => 'NIM hanya boleh angka.',
+            'anggotaTim.*.email.required' => 'Email anggota wajib diisi.',
+            'anggotaTim.*.email.email' => 'Email harus valid.',
+            'proposalLink.required' => 'Proposal wajib diisi.',
         ]);
 
         $validator->after(function ($validator) use ($request, $karyaLama) {
@@ -461,6 +662,8 @@ class KaryaController extends Controller
     });
 
         $validated = $validator->validate();
+        $this->validateAnggotaTim($validated['anggotaTim']);
+        $validated['anggotaTim'] = $this->normalizeAnggotaTim($validated['anggotaTim']);
 
         $kategori = KategoriLomba::query()
             ->where('edisi_lomba_id', $edisi->id)
@@ -552,7 +755,7 @@ class KaryaController extends Controller
             }
         });
 
-        return redirect()->route('peserta.daftar-karya')->with('success', 'Karya berhasil didaftarkan.')->setStatusCode(303);
+        return redirect()->route('peserta.daftar-karya')->with('success', 'Karya berhasil di-submit.')->setStatusCode(303);
     }
 
     public function destroy(Request $request, KaryaPeserta $karya)
@@ -561,7 +764,7 @@ class KaryaController extends Controller
         abort_unless($this->pendaftaranMasihDibuka($edisi), 403, 'Pendaftaran sudah ditutup.');
 
         abort_unless(
-            (int) $karya->user_id === (int) $request->user()->id && (int) $karya->edisi_lomba_id === (int) $edisi->id,
+            $this->canAccessKarya($request, $karya) && (int) $karya->edisi_lomba_id === (int) $edisi->id,
             403
         );
 
@@ -578,7 +781,7 @@ class KaryaController extends Controller
         $karya = $lampiran->karya;
         abort_unless($karya, 404);
 
-        abort_unless((int) $karya->user_id === (int) $request->user()->id, 403);
+        abort_unless($this->canAccessKarya($request, $karya), 403);
 
         abort_unless(Storage::disk('public')->exists($lampiran->path_file), 404);
 
@@ -592,7 +795,7 @@ class KaryaController extends Controller
     public function previewProposal(Request $request, KaryaPeserta $karya)
     {
         abort_unless(
-            (int) $karya->user_id === (int) $request->user()->id,
+            $this->canAccessKarya($request, $karya),
             403
         );
 

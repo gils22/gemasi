@@ -2,24 +2,20 @@
 import { ref, computed, watch } from "vue";
 import CategorySideTabs from "@/components/landing/CategorySideTabs.vue";
 import {
-    Layers,
-    Code2,
-    Brush,
-    LineChart,
-    Cpu,
-    Smartphone,
-    Gamepad2,
-    Database,
-    ShieldCheck,
-    ArrowRight,
-} from "lucide-vue-next";
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
+import { ArrowRight } from "lucide-vue-next";
 
 type LandingKategori = {
     id: number;
     nama: string;
     slug?: string | null;
     deskripsi?: string | null;
-    weights?: Array<{ label: string; point: number }>;
+    icon_url?: string | null;
+    weights?: Array<{ label: string; point: number; description?: string }>;
 };
 
 type TemplateProposal = {
@@ -39,54 +35,16 @@ const topTabs = [
     { id: "template", label: "Template Proposal" },
 ];
 
-const getCategoryMeta = (name: string) => {
-    const label = name.toLowerCase();
-    if (label.includes("fintech") || label.includes("bisnis")) {
-        return { icon: Layers, accent: "bg-emerald-100 text-emerald-700" };
-    }
-    if (label.includes("business plan") || label.includes("plan")) {
-        return { icon: LineChart, accent: "bg-blue-100 text-blue-700" };
-    }
-    if (label.includes("sistem informasi") || label.includes("aplikasi")) {
-        return { icon: Cpu, accent: "bg-indigo-100 text-indigo-700" };
-    }
-    if (
-        label.includes("ui/ux") ||
-        label.includes("ui") ||
-        label.includes("ux")
-    ) {
-        return { icon: Brush, accent: "bg-pink-100 text-pink-700" };
-    }
-    if (label.includes("pemrograman") || label.includes("program")) {
-        return { icon: Code2, accent: "bg-slate-100 text-slate-700" };
-    }
-    if (label.includes("data")) {
-        return { icon: Database, accent: "bg-amber-100 text-amber-700" };
-    }
-    if (
-        label.includes("ar") ||
-        label.includes("vr") ||
-        label.includes("interaktif")
-    ) {
-        return { icon: Gamepad2, accent: "bg-violet-100 text-violet-700" };
-    }
-    if (label.includes("multimedia")) {
-        return { icon: Smartphone, accent: "bg-cyan-100 text-cyan-700" };
-    }
-    return { icon: ShieldCheck, accent: "bg-slate-100 text-slate-600" };
-};
-
 const mappedCategories = computed(() => {
     const raw = props.categories ?? [];
     return raw.map((item) => {
-        const meta = getCategoryMeta(item.nama);
         return {
             id: item.slug || String(item.id),
             name: item.nama,
             description: item.deskripsi ?? "",
             weights: item.weights ?? [],
-            icon: meta.icon,
-            accent: meta.accent,
+            icon: item.icon_url ?? null,
+            accent: "bg-slate-100 text-slate-600",
         };
     });
 });
@@ -181,17 +139,30 @@ watch(activeIndex, (val) => {
                             </span>
                         </div>
                         <div class="mt-4 space-y-2 text-sm text-slate-700">
-                            <div
-                                v-for="(row, idx) in activeCategory?.weights ??
-                                []"
-                                :key="`${activeCategory?.id}-weight-${idx}`"
-                                class="flex items-center justify-between rounded-lg border border-slate-200 bg-white/70 px-3 py-2 sm:px-4"
-                            >
-                                <span class="capitalize">{{ row.label }}</span>
-                                <span class="font-semibold text-slate-900">
-                                    {{ row.point }}
-                                </span>
-                            </div>
+                            <Accordion type="multiple" class="space-y-2">
+                                <AccordionItem
+                                    v-for="(row, idx) in activeCategory?.weights ?? []"
+                                    :key="`${activeCategory?.id}-weight-${idx}`"
+                                    :value="`${activeCategory?.id}-weight-${idx}`"
+                                    class="rounded-lg border border-slate-200 bg-white/70 px-3 sm:px-4 last:border-b"
+                                >
+                                    <AccordionTrigger class="py-3 no-underline hover:no-underline">
+                                        <div class="flex w-full items-center justify-between gap-3 text-left">
+                                            <span class="capitalize">
+                                                {{ row.label }}
+                                            </span>
+                                            <span class="font-semibold text-slate-900">
+                                                {{ row.point }}
+                                            </span>
+                                        </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent class="pb-3">
+                                        <p class="text-xs leading-relaxed text-slate-500">
+                                            {{ row.description }}
+                                        </p>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
                             <p
                                 v-if="!(activeCategory?.weights ?? []).length"
                                 class="text-xs text-slate-500"
