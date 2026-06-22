@@ -50,6 +50,7 @@ const page = usePage<
 
 const edisiAktif = computed(() => page.props.edisi?.aktif);
 const daftarKategori = computed(() => page.props.daftarKategori ?? []);
+const pendaftaranDibuka = computed(() => Boolean(page.props.pendaftaranDibuka));
 const templateProposalUrl = computed(
     () => page.props.templateProposalUrl ?? null,
 );
@@ -137,9 +138,15 @@ const isFileLengkap = computed(() => {
     const draft = (karyaDraft.value as any) ?? {};
     const pageKarya = (page.props as any)?.karya ?? {};
 
-    const draftStatus = String(draft.status ?? draft.status_tampilan ?? "").toLowerCase();
-    const pageStatus = String(pageKarya.status ?? pageKarya.status_tampilan ?? "").toLowerCase();
-    const formStatus = String((form.value as any)?.status_tampilan ?? "").toLowerCase();
+    const draftStatus = String(
+        draft.status ?? draft.status_tampilan ?? "",
+    ).toLowerCase();
+    const pageStatus = String(
+        pageKarya.status ?? pageKarya.status_tampilan ?? "",
+    ).toLowerCase();
+    const formStatus = String(
+        (form.value as any)?.status_tampilan ?? "",
+    ).toLowerCase();
 
     if (draftStatus === "submitted" || draftStatus === "lengkap") return true;
     if (pageStatus === "submitted" || pageStatus === "lengkap") return true;
@@ -148,7 +155,9 @@ const isFileLengkap = computed(() => {
     // Fallback: if proposal link exists and we're viewing (readOnly or arsip readOnly), treat as lengkap
     if (
         String(form.value.proposalLink ?? "").trim().length > 0 &&
-        (Boolean(page.props.readOnly) || Boolean(page.props.isArsipReadOnly))
+        (Boolean(page.props.readOnly) ||
+            Boolean(page.props.isArsipReadOnly) ||
+            (isEditMode.value && pendaftaranDibuka.value))
     ) {
         return true;
     }
@@ -287,7 +296,10 @@ const saveStepDraft = (step: number, advanceStep = false) => {
     )
         payload.dosenPembimbing = pembimbing;
 
-    if (Array.isArray(form.value.anggotaTim) && form.value.anggotaTim.length > 0)
+    if (
+        Array.isArray(form.value.anggotaTim) &&
+        form.value.anggotaTim.length > 0
+    )
         payload.anggotaTim = form.value.anggotaTim;
 
     // Step 3 fields
@@ -295,8 +307,8 @@ const saveStepDraft = (step: number, advanceStep = false) => {
         payload.proposalLink = form.value.proposalLink;
 
     if (Array.isArray(form.value.linkTambahan)) {
-        const filtered = form.value.linkTambahan.filter((i) =>
-            String(i?.url ?? "").trim().length > 0,
+        const filtered = form.value.linkTambahan.filter(
+            (i) => String(i?.url ?? "").trim().length > 0,
         );
         if (filtered.length) payload.linkTambahan = filtered;
     }
@@ -324,9 +336,8 @@ const saveStepDraft = (step: number, advanceStep = false) => {
                 form.value.id = karyaId;
             }
             toast.success(`Draft tersimpan.`);
-            if (advanceStep && langkahAktif.value < totalLangkah) {
-                langkahAktif.value++;
-            }
+            // Redirect to daftar karya (list) after successful draft save
+            router.get("/peserta/daftar-karya");
         },
         onError: (errors) => {
             const pesan = Object.values(errors ?? {})[0] as string | undefined;
