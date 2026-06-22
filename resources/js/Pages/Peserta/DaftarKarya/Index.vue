@@ -133,6 +133,29 @@ if (karyaDraft.value) {
     };
 }
 
+const isFileLengkap = computed(() => {
+    const draft = (karyaDraft.value as any) ?? {};
+    const pageKarya = (page.props as any)?.karya ?? {};
+
+    const draftStatus = String(draft.status ?? draft.status_tampilan ?? "").toLowerCase();
+    const pageStatus = String(pageKarya.status ?? pageKarya.status_tampilan ?? "").toLowerCase();
+    const formStatus = String((form.value as any)?.status_tampilan ?? "").toLowerCase();
+
+    if (draftStatus === "submitted" || draftStatus === "lengkap") return true;
+    if (pageStatus === "submitted" || pageStatus === "lengkap") return true;
+    if (formStatus === "submitted" || formStatus === "lengkap") return true;
+
+    // Fallback: if proposal link exists and we're viewing (readOnly or arsip readOnly), treat as lengkap
+    if (
+        String(form.value.proposalLink ?? "").trim().length > 0 &&
+        (Boolean(page.props.readOnly) || Boolean(page.props.isArsipReadOnly))
+    ) {
+        return true;
+    }
+
+    return false;
+});
+
 const steps = [
     { id: 1, label: "Daftar", desc: "Data karya dasar" },
     { id: 2, label: "Tim", desc: "Profil tim" },
@@ -239,21 +262,56 @@ const goPrev = () => {
 };
 
 const saveStepDraft = (step: number, advanceStep = false) => {
+    // Persist only fields that are filled, regardless of current step.
     const payload: Record<string, unknown> = {
         id: form.value.id ?? null,
         step,
     };
 
-    if (step === 1) {
+    // Step 1 fields
+    if (String(form.value.kategori ?? "").trim().length > 0)
         payload.kategori = form.value.kategori;
+    if (String(form.value.namaKarya ?? "").trim().length > 0)
         payload.namaKarya = form.value.namaKarya;
+    if (String(form.value.waKetua ?? "").trim().length > 0)
         payload.waKetua = form.value.waKetua;
-    } else if (step === 2) {
-        payload.dosenPembimbing = form.value.dosenPembimbing;
+
+    // Step 2 fields
+    const pembimbing = form.value.dosenPembimbing;
+    if (
+        pembimbing &&
+        (String(pembimbing.nik ?? "").trim().length > 0 ||
+            String(pembimbing.nama ?? "").trim().length > 0 ||
+            String(pembimbing.email ?? "").trim().length > 0 ||
+            String(pembimbing.bidang ?? "").trim().length > 0)
+    )
+        payload.dosenPembimbing = pembimbing;
+
+    if (Array.isArray(form.value.anggotaTim) && form.value.anggotaTim.length > 0)
         payload.anggotaTim = form.value.anggotaTim;
-    } else if (step === 3) {
+
+    // Step 3 fields
+    if (String(form.value.proposalLink ?? "").trim().length > 0)
         payload.proposalLink = form.value.proposalLink;
-        payload.linkTambahan = form.value.linkTambahan;
+
+    if (Array.isArray(form.value.linkTambahan)) {
+        const filtered = form.value.linkTambahan.filter((i) =>
+            String(i?.url ?? "").trim().length > 0,
+        );
+        if (filtered.length) payload.linkTambahan = filtered;
+    }
+
+    // Lampiran: include if any meaningful data present
+    if (Array.isArray(form.value.lampiran)) {
+        const anyLampiran = form.value.lampiran.some((l) => {
+            return (
+                l?.file != null ||
+                String(l?.namaFile ?? "").trim().length > 0 ||
+                String(l?.url ?? "").trim().length > 0 ||
+                String(l?.deskripsi ?? "").trim().length > 0
+            );
+        });
+        if (anyLampiran) payload.lampiran = form.value.lampiran;
     }
 
     isSavingStep.value = true;
@@ -265,14 +323,14 @@ const saveStepDraft = (step: number, advanceStep = false) => {
             if (karyaId > 0) {
                 form.value.id = karyaId;
             }
-            toast.success(`Tahap ${step} tersimpan.`);
+            toast.success(`Draft tersimpan.`);
             if (advanceStep && langkahAktif.value < totalLangkah) {
                 langkahAktif.value++;
             }
         },
         onError: (errors) => {
             const pesan = Object.values(errors ?? {})[0] as string | undefined;
-            toast.error(pesan ? `${pesan}` : `Gagal menyimpan tahap ${step}.`);
+            toast.error(pesan ? `${pesan}` : `Gagal menyimpan draft.`);
         },
         onFinish: () => {
             isSavingStep.value = false;
@@ -432,7 +490,12 @@ const submit = () => {
                         class="flex flex-col-reverse gap-2 sm:flex-row sm:gap-3 sm:justify-end"
                     >
                         <Button
-                            v-if="!isReadOnly && langkahAktif <= totalLangkah"
+                            v-if="
+                                !isReadOnly &&
+                                !isArsipReadOnly &&
+                                langkahAktif <= totalLangkah &&
+                                !isFileLengkap
+                            "
                             variant="outline"
                             class="w-full sm:w-auto"
                             :disabled="!isLangkahValid || isSavingStep"
@@ -466,7 +529,13 @@ const submit = () => {
                             @click="submit"
                         >
                             <Spinner v-if="isSubmitting" class="h-4 w-4" />
-                            <span v-else>Kirim</span>
+                            <span v-else>
+                                {{
+                                    isEditMode || isFileLengkap
+                                        ? "Simpan Perubahan"
+                                        : "Kirim"
+                                }}
+                            </span>
                         </Button>
                     </div>
                 </CardFooter>
