@@ -93,10 +93,15 @@ const parseTimelineDate = (value?: string | null) => {
     return new Date(Number(match[3]), monthIndex, Number(match[1]));
 };
 
-const normalizeDate = () => {
-    const value = new Date();
-    value.setHours(0, 0, 0, 0);
-    return value;
+const formatTimelineDate = (value?: string | null) => {
+    const date = parseTimelineDate(value);
+    if (!date) return "-";
+
+    return date.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    });
 };
 
 const isEdisiArsip = computed(() => edisiAktif.value?.status === "arsip");
@@ -107,7 +112,7 @@ const getTimelineStatus = (item: TimelineItem): TimelineStatus => {
 
     const start = parseTimelineDate(item.mulai_pada);
     const end = parseTimelineDate(item.selesai_pada);
-    const now = normalizeDate();
+    const now = new Date();
 
     if (start && now < start) return "upcoming";
     if (end && now > end) return "finished";
@@ -120,13 +125,13 @@ const timelineStatusLabel = computed(() => {
     if (isEdisiArsip.value) return "Selesai";
 
     const statuses = timelineItems.value.map(getTimelineStatus);
-    if (statuses.includes("ongoing")) return "Sedang berlangsung";
+    if (statuses.includes("ongoing")) return "Berlangsung";
     if (statuses.every((status) => status === "finished")) return "Selesai";
     return "Belum dimulai";
 });
 
 const timelineStatusClass = computed(() =>
-    timelineStatusLabel.value === "Sedang berlangsung"
+    timelineStatusLabel.value === "Berlangsung"
         ? "bg-indigo-50 text-indigo-700"
         : "bg-slate-100 text-slate-600",
 );
@@ -134,7 +139,7 @@ const timelineStatusClass = computed(() =>
 const timelineItemStatusLabel = (item: TimelineItem) => {
     if (item.is_tba) return "TBA";
     const status = getTimelineStatus(item);
-    if (status === "ongoing") return "Sedang berlangsung";
+    if (status === "ongoing") return "Berlangsung";
     if (status === "finished") return "Selesai";
     return "Berikutnya";
 };
@@ -358,12 +363,9 @@ defineOptions({
                                     {{
                                         item.is_tba
                                             ? "TBA"
-                                            : item.mulai_pada &&
-                                                item.selesai_pada
-                                              ? `${item.mulai_pada} - ${item.selesai_pada}`
-                                              : item.mulai_pada ||
-                                                item.selesai_pada ||
-                                                "Belum dijadwalkan"
+                                            : item.mulai_pada || item.selesai_pada
+                                              ? `${formatTimelineDate(item.mulai_pada)} - ${formatTimelineDate(item.selesai_pada)}`
+                                              : "Belum dijadwalkan"
                                     }}
                                 </p>
                             </div>

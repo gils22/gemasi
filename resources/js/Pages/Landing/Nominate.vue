@@ -82,8 +82,6 @@ const nominasiAktif = computed(() => {
     if (Number.isNaN(parsed.getTime())) return false;
 
     const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    parsed.setHours(0, 0, 0, 0);
     return now >= parsed;
 });
 
@@ -132,6 +130,19 @@ const edisiLabel = computed(() => {
     return `${edisi.nama} (${edisi.tahun})`;
 });
 
+const formatDateOnly = (value?: string | null) => {
+    if (!value) return "TBA";
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "TBA";
+
+    return parsed.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+    });
+};
+
 const kategoriLabel = (item: NominasiItem) => {
     if (item.kategori) return item.kategori;
     const found = (props.kategoriOptions ?? []).find(
@@ -139,7 +150,6 @@ const kategoriLabel = (item: NominasiItem) => {
     );
     return found?.nama ?? "-";
 };
-
 </script>
 
 <template>
@@ -185,17 +195,28 @@ const kategoriLabel = (item: NominasiItem) => {
                         </p>
                         <p class="mt-2 text-sm leading-relaxed text-amber-800">
                             Daftar nominasi akan tampil otomatis ketika timeline
+                            sudah masuk
                             <span class="font-semibold">
                                 {{
                                     selectedTimelinePengumuman?.judul ??
                                     "Pengumuman Nominasi"
                                 }}
                             </span>
-                            sudah melewati tanggal mulai.
+                            .
                         </p>
-                        <p v-if="selectedTimelinePengumuman?.mulai_pada || selectedTimelinePengumuman?.selesai_pada" class="mt-2 text-sm text-amber-700">
+                        <p
+                            v-if="
+                                selectedTimelinePengumuman?.mulai_pada ||
+                                selectedTimelinePengumuman?.selesai_pada
+                            "
+                            class="mt-2 text-sm text-amber-700"
+                        >
                             Mulai:
-                            {{ selectedTimelinePengumuman?.mulai_pada ?? "TBA" }}
+                            {{
+                                formatDateOnly(
+                                    selectedTimelinePengumuman?.mulai_pada,
+                                )
+                            }}
                         </p>
                     </div>
 
@@ -236,7 +257,7 @@ const kategoriLabel = (item: NominasiItem) => {
                                 <div
                                     class="rounded-lg border border-dashed border-slate-200 bg-white/70 p-6 text-sm text-slate-500"
                                 >
-                                    Belum ada karya nominasi untuk tahun ini.
+                                    Belum ada karya nominasi.
                                 </div>
                             </div>
 

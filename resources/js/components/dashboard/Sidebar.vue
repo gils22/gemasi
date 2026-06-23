@@ -79,6 +79,7 @@ const role = computed<RoleKey | "">(() => {
     }
     return "";
 });
+const showEditionSelector = computed(() => role.value !== "peserta");
 
 const menus = computed<MenuItem[]>(() => {
     if (!role.value) return [];
@@ -272,7 +273,7 @@ const isParentActive = (menu: MenuItem) => {
 
                 <div v-if="!collapsed || isMobile" class="flex-1 min-w-0">
                     <Select
-                        v-if="daftarEdisi.length > 1"
+                        v-if="showEditionSelector && daftarEdisi.length > 1"
                         v-model="edisiDipilih"
                         @update:model-value="gantiEdisi"
                     >

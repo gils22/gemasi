@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { Link, usePage } from "@inertiajs/vue3";
+import { toast } from "vue-sonner";
 import DashboardLayout from "@/Layouts/DashboardLayout.vue";
 import heroImage from "@/assets/gizmo.png";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +69,7 @@ const page = usePage<
             aktif: boolean;
         };
         edisiAktifLabel?: string;
+        nominasiTerbuka?: boolean;
         statusTim?: string;
         submissionCount?: number;
         nominasiCount?: number;
@@ -85,6 +87,7 @@ const page = usePage<
 const edisiAktif = computed(() => page.props.edisiAktif ?? null);
 const edisiAktifLabel = computed(() => page.props.edisiAktifLabel ?? "-");
 const namaPeserta = computed(() => page.props.auth?.user?.name ?? "Peserta");
+const nominasiTerbuka = computed(() => page.props.nominasiTerbuka ?? false);
 const statusTim = computed(() => page.props.statusTim ?? "-");
 const submissionCount = computed(() => page.props.submissionCount ?? 0);
 const nominasiCount = computed(() => page.props.nominasiCount ?? 0);
@@ -123,10 +126,15 @@ const parseTimelineDate = (value?: string | null) => {
     return new Date(Number(match[3]), monthIndex, Number(match[1]));
 };
 
-const normalizeDate = () => {
-    const value = new Date();
-    value.setHours(0, 0, 0, 0);
-    return value;
+const formatTimelineDate = (value?: string | null) => {
+    const date = parseTimelineDate(value);
+    if (!date) return "-";
+
+    return date.toLocaleDateString("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+    });
 };
 
 const isEdisiArsip = computed(() => edisiAktif.value?.status === "arsip");
@@ -137,7 +145,7 @@ const getTimelineStatus = (item: TimelineItem): TimelineStatus => {
 
     const start = parseTimelineDate(item.mulai_pada);
     const end = parseTimelineDate(item.selesai_pada);
-    const now = normalizeDate();
+    const now = new Date();
 
     if (start && now < start) return "upcoming";
     if (end && now > end) return "finished";
@@ -150,13 +158,13 @@ const timelineStatusLabel = computed(() => {
     if (isEdisiArsip.value) return "Selesai";
 
     const statuses = timelineItems.value.map(getTimelineStatus);
-    if (statuses.includes("ongoing")) return "Sedang berlangsung";
+    if (statuses.includes("ongoing")) return "Berlangsung";
     if (statuses.every((status) => status === "finished")) return "Selesai";
     return "Belum dimulai";
 });
 
 const timelineStatusClass = computed(() =>
-    timelineStatusLabel.value === "Sedang berlangsung"
+    timelineStatusLabel.value === "Berlangsung"
         ? "bg-indigo-50 text-indigo-700"
         : "bg-slate-100 text-slate-600",
 );
@@ -164,7 +172,7 @@ const timelineStatusClass = computed(() =>
 const timelineItemStatusLabel = (item: TimelineItem) => {
     if (item.is_tba) return "TBA";
     const status = getTimelineStatus(item);
-    if (status === "ongoing") return "Sedang berlangsung";
+    if (status === "ongoing") return "Berlangsung";
     if (status === "finished") return "Selesai";
     return "Berikutnya";
 };
@@ -222,11 +230,35 @@ const filteredKaryaList = computed(() =>
 );
 
 const karyaBadgeClass = (status?: string | null, lolosNominasi?: boolean) => {
-    if (lolosNominasi) return "bg-violet-50 text-violet-700";
+    if (lolosNominasi && nominasiTerbuka.value)
+        return "bg-violet-50 text-violet-700";
     if (status === "submitted") return "bg-emerald-50 text-emerald-700";
     if (status === "draft") return "bg-amber-50 text-amber-700";
     return "bg-slate-100 text-slate-700";
 };
+
+const hasShownNominationToast = ref(false);
+
+watch(
+    [nominasiTerbuka, nominasiList],
+    ([isOpen, list]) => {
+        if (!isOpen || hasShownNominationToast.value || !list.length) return;
+
+        hasShownNominationToast.value = true;
+        const karyaNames = list
+            .slice(0, 3)
+            .map((item) => item.nama_karya ?? "-")
+            .filter(Boolean);
+
+        toast.success("Pengumuman nominasi sudah dibuka", {
+            description:
+                karyaNames.length > 0
+                    ? `${karyaNames.join(", ")}${list.length > 3 ? ` dan ${list.length - 3} karya lain` : ""} lolos nominasi.`
+                    : "Beberapa karya kamu lolos nominasi.",
+        });
+    },
+    { immediate: true },
+);
 
 </script>
 
@@ -376,7 +408,8 @@ const karyaBadgeClass = (status?: string | null, lolosNominasi?: boolean) => {
                                                 "
                                             >
                                                 {{
-                                                    item.lolos_nominasi
+                                                    item.lolos_nominasi &&
+                                                    nominasiTerbuka
                                                         ? "Nominasi"
                                                         : item.status ===
                                                             "submitted"
@@ -512,12 +545,9 @@ const karyaBadgeClass = (status?: string | null, lolosNominasi?: boolean) => {
                                     {{
                                         item.is_tba
                                             ? "TBA"
-                                            : item.mulai_pada &&
-                                                item.selesai_pada
-                                              ? `${item.mulai_pada} - ${item.selesai_pada}`
-                                              : item.mulai_pada ||
-                                                item.selesai_pada ||
-                                                "Belum dijadwalkan"
+                                            : item.mulai_pada || item.selesai_pada
+                                              ? `${formatTimelineDate(item.mulai_pada)} - ${formatTimelineDate(item.selesai_pada)}`
+                                              : "Belum dijadwalkan"
                                     }}
                                 </p>
                             </div>

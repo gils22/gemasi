@@ -19,7 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { SquarePen, CheckCircle2, RotateCcw } from "lucide-vue-next";
+import { Eye, CheckCircle2, RotateCcw } from "lucide-vue-next";
 import type { PageProps } from "@/types/inertia";
 
 type NominasiRow = {
@@ -344,7 +344,7 @@ defineOptions({
                                             as-child
                                         >
                                             <a :href="row.url_nilai">
-                                                <SquarePen class="h-4 w-4" />
+                                                <Eye class="h-4 w-4" />
                                             </a>
                                         </Button>
                                     </TooltipTrigger>
@@ -367,7 +367,7 @@ defineOptions({
                                             as-child
                                         >
                                             <a :href="row.url_nilai">
-                                                <SquarePen class="h-4 w-4" />
+                                                <Eye class="h-4 w-4" />
                                             </a>
                                         </Button>
                                     </TooltipTrigger>

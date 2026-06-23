@@ -57,9 +57,14 @@ class PenugasanJuriController extends Controller
         $penugasan = PenugasanJuriKategori::query()
             ->where('edisi_lomba_id', $edisi->id)
             ->orderBy('id')
-            ->get(['kategori_lomba_id', 'juri_id'])
+            ->get(['kategori_lomba_id', 'juri_id', 'tahap'])
             ->groupBy('kategori_lomba_id')
-            ->map(fn ($rows) => $rows->pluck('juri_id')->values())
+            ->map(function ($rows) {
+                return [
+                    'tahap_1' => $rows->where('tahap', 'tahap_1')->pluck('juri_id')->values(),
+                    'tahap_2' => $rows->where('tahap', 'tahap_2')->pluck('juri_id')->values(),
+                ];
+            })
             ->all();
 
         return Inertia::render('Penjurian/Penugasan', [
@@ -78,9 +83,10 @@ class PenugasanJuriController extends Controller
         $validated = $request->validate([
             'assignments' => 'required|array|min:1',
             'assignments.*.kategori_lomba_id' => 'required|integer|exists:kategori_lomba,id',
-            'assignments.*.juri_ids' => 'required|array|size:2',
-            'assignments.*.juri_ids.*' => 'required|integer|distinct|exists:users,id',
-            'assignments.*.tahap' => 'nullable|string|in:tahap_1,tahap_2,tahap_1_2',
+            'assignments.*.tahap_1' => 'nullable|array|size:2',
+            'assignments.*.tahap_1.*' => 'required|integer|distinct|exists:users,id',
+            'assignments.*.tahap_2' => 'nullable|array|size:2',
+            'assignments.*.tahap_2.*' => 'required|integer|distinct|exists:users,id',
         ]);
 
         $kategoriAktifIds = KategoriLomba::query()
@@ -111,28 +117,32 @@ class PenugasanJuriController extends Controller
         $payload = [];
         foreach ($validated['assignments'] as $row) {
             $kategoriId = (int) $row['kategori_lomba_id'];
-            $tahap = $row['tahap'] ?? 'tahap_2';
-            $juriIds = collect($row['juri_ids'])->map(fn ($id) => (int) $id)->values();
-            if ($juriIds->count() !== 2 || $juriIds->unique()->count() !== 2) {
-                throw ValidationException::withMessages([
-                    'assignments' => 'Setiap kategori harus memiliki 2 juri berbeda.',
-                ]);
-            }
-
-            foreach ($juriIds as $juriId) {
-                if (!in_array($juriId, $juriValidIds, true)) {
+            foreach (['tahap_1', 'tahap_2'] as $tahap) {
+                $juriIds = collect($row[$tahap] ?? [])->map(fn ($id) => (int) $id)->values();
+                if ($juriIds->isEmpty()) {
+                    continue;
+                }
+                if ($juriIds->count() !== 2 || $juriIds->unique()->count() !== 2) {
                     throw ValidationException::withMessages([
-                        'assignments' => 'Terdapat user yang bukan juri pada edisi aktif.',
+                        'assignments' => 'Setiap kategori pada tiap tahap harus memiliki 2 juri berbeda.',
                     ]);
                 }
-                $payload[] = [
-                    'edisi_lomba_id' => $edisi->id,
-                    'kategori_lomba_id' => $kategoriId,
-                    'juri_id' => $juriId,
-                    'tahap' => $tahap,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
+
+                foreach ($juriIds as $juriId) {
+                    if (!in_array($juriId, $juriValidIds, true)) {
+                        throw ValidationException::withMessages([
+                            'assignments' => 'Terdapat user yang bukan juri pada edisi aktif.',
+                        ]);
+                    }
+                    $payload[] = [
+                        'edisi_lomba_id' => $edisi->id,
+                        'kategori_lomba_id' => $kategoriId,
+                        'juri_id' => $juriId,
+                        'tahap' => $tahap,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
             }
         }
 

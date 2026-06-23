@@ -125,8 +125,8 @@ class JuriDashboardController extends Controller
                 return [
                     'id' => $item->id,
                     'judul' => $item->judul,
-                    'mulai_pada' => $item->mulai_pada?->format('d M Y'),
-                    'selesai_pada' => $item->selesai_pada?->format('d M Y'),
+                    'mulai_pada' => $item->mulai_pada?->toIso8601String(),
+                    'selesai_pada' => $item->selesai_pada?->toIso8601String(),
                     'is_tba' => (bool) $item->is_tba,
                     'deskripsi' => $item->deskripsi,
                     'aktif' => (bool) $item->aktif,

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Edition;
 use App\Models\KaryaPeserta;
 use App\Models\TimelineLomba;
+use App\Services\NominationAnnouncementService;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
@@ -48,10 +49,17 @@ class DashboardController extends Controller
         return $edisi;
     }
 
+    private function nominationVisibleForEdition(Edition $edisi): bool
+    {
+        return app(NominationAnnouncementService::class)->isAnnouncementWindowOpenForEdition((int) $edisi->id);
+    }
+
     public function index(Request $request)
     {
         $edisi = $this->resolveEdisiAktifOrFail();
         $userEmail = $this->normalizedEmail($request->user()->email);
+        $nominasiTerbuka = $edisi->status === 'aktif'
+            && $this->nominationVisibleForEdition($edisi);
         $karyaSemua = KaryaPeserta::query()
             ->with('edisi:id,nama,tahun,status,aktif')
             ->where(function ($query) use ($request, $userEmail) {
@@ -65,7 +73,23 @@ class DashboardController extends Controller
             ->get();
 
         $submissionCount = $karyaSemua->where('status', 'submitted')->count();
-        $nominasi = $karyaSemua->where('lolos_nominasi', true)->values();
+        $karyaEdisiAktif = $karyaSemua->where('edisi_lomba_id', $edisi->id)->values();
+        $nominasi = $nominasiTerbuka
+            ? $karyaEdisiAktif->where('lolos_nominasi', true)->values()
+            : collect();
+        $nominasiNotification = [];
+        if ($nominasiTerbuka && $nominasi->isNotEmpty()) {
+            $signature = $nominasi->pluck('id')->implode('-');
+            $seenKey = "nominasi_notification_seen_{$edisi->id}";
+            if (session($seenKey) !== $signature) {
+                session([$seenKey => $signature]);
+                $nominasiNotification = $nominasi
+                    ->map(fn (KaryaPeserta $item) => $item->nama_karya)
+                    ->filter()
+                    ->values()
+                    ->all();
+            }
+        }
         $edisiOpsi = $karyaSemua
             ->pluck('edisi')
             ->filter()
@@ -116,8 +140,8 @@ class DashboardController extends Controller
                 return [
                     'id' => $item->id,
                     'judul' => $item->judul,
-                    'mulai_pada' => $item->mulai_pada?->format('d M Y'),
-                    'selesai_pada' => $item->selesai_pada?->format('d M Y'),
+                    'mulai_pada' => $item->mulai_pada?->toIso8601String(),
+                    'selesai_pada' => $item->selesai_pada?->toIso8601String(),
                     'is_tba' => (bool) $item->is_tba,
                     'deskripsi' => $item->deskripsi,
                     'aktif' => (bool) $item->aktif,
@@ -154,6 +178,7 @@ class DashboardController extends Controller
                 'aktif' => (bool) $edisi->aktif,
             ],
             'edisiAktifLabel' => $edisi->nama . ' (' . $edisi->tahun . ')',
+            'nominasiTerbuka' => $nominasiTerbuka,
             'statusTim' => $karyaSemua->isEmpty()
                 ? 'Belum Terdaftar'
                 : ($submissionCount > 0 ? 'Submission Lengkap' : 'Draft Tersimpan'),
@@ -179,6 +204,14 @@ class DashboardController extends Controller
                     'pameran_submitted_at' => $item->pameran_submitted_at?->format('d M Y, H:i'),
                 ];
             })->values(),
+            'flash' => array_filter([
+                'welcome' => $request->session()->pull('welcome'),
+                'success' => $request->session()->pull('success'),
+                'error' => $request->session()->pull('error'),
+                'nominasi' => !empty($nominasiNotification)
+                    ? $nominasiNotification
+                    : null,
+            ]),
         ]);
     }
 }

@@ -289,10 +289,10 @@ class KaryaController extends Controller
             (int) $selectedKarya->user_id !== (int) $request->user()->id
         );
 
-        if (!$pendaftaranDibuka && !$isArsipReadOnly) {
+        if ($isBuatBaru && !$pendaftaranDibuka && !$isArsipReadOnly) {
             return redirect()
                 ->route('peserta.daftar-karya')
-                ->with('error', 'Pendaftaran sudah ditutup. Tambah atau edit karya tidak tersedia.');
+                ->with('error', 'Pendaftaran sudah ditutup. Tambah karya baru tidak tersedia.');
         }
 
         $edisiForm = $isArsipReadOnly ? $selectedKarya->edisi : $edisi;
@@ -357,6 +357,42 @@ class KaryaController extends Controller
             'isArsipReadOnly' => $isArsipReadOnly,
             'templateProposalUrl' => $panduan?->template_proposal_path ?: null,
             'templateProposalName' => $panduan?->template_proposal_nama_tampil,
+        ]);
+    }
+
+    public function show(Request $request, KaryaPeserta $karya)
+    {
+        $userId = (int) $request->user()->id;
+        $userEmail = $this->normalizedEmail($request->user()->email);
+
+        abort_unless(
+            $this->canAccessKarya($request, $karya),
+            403
+        );
+
+        $karya->load(['edisi', 'lampiran']);
+
+        $anggota = collect($karya->anggota_tim ?? []);
+
+        return Inertia::render('Peserta/DaftarKarya/Detail', [
+            'karya' => [
+                'id' => $karya->id,
+                'nama_karya' => $karya->nama_karya,
+                'nama_kategori' => $karya->nama_kategori,
+                'edisi_label' => optional($karya->edisi)->nama . ' (' . optional($karya->edisi)->tahun . ')',
+                'status_tampilan' => $karya->status === 'submitted' ? 'Lengkap' : 'Tahap 1 tersimpan',
+                'wa_ketua' => $karya->wa_ketua,
+                'dosen_pembimbing' => $karya->dosen_pembimbing,
+                'proposal_link' => $karya->proposal_path,
+                'link_tambahan' => $karya->link_tambahan ?? [],
+                'anggota_tim' => $anggota->values(),
+                'lampiran' => $karya->lampiran->map(fn (LampiranKaryaPeserta $item) => [
+                    'id' => $item->id,
+                    'nama_asli' => $item->nama_asli,
+                    'deskripsi' => $item->deskripsi,
+                    'url' => route('peserta.daftar-karya.lampiran.preview', ['lampiran' => $item->id]),
+                ])->values(),
+            ],
         ]);
     }
 
@@ -543,7 +579,8 @@ class KaryaController extends Controller
             3 => [
                 'id' => 'nullable|integer',
                 'step' => 'required|integer',
-                'proposalLink' => 'required|string|max:2048',
+                // For drafts, proposalLink may be omitted; accept nullable here.
+                'proposalLink' => 'nullable|string|max:2048',
                 'linkTambahan' => 'nullable|array',
                 'linkTambahan.*.label' => 'nullable|string|max:100',
                 'linkTambahan.*.url' => 'nullable|string|max:2048',
@@ -554,8 +591,7 @@ class KaryaController extends Controller
         $validator->setCustomMessages([
             'dosenPembimbing.email.email' => 'Email harus valid.',
             'anggotaTim.*.email.email' => 'Email harus valid.',
-            'anggotaTim.*.nim.regex' => 'NIM hanya boleh angka.',
-            'proposalLink.required' => 'Proposal wajib diisi.',
+            'anggotaTim.*.nim.regex' => 'NIM hanya boleh angka atau titik.',
         ]);
         if ($step === 2) {
             $validator->after(function ($validator) use ($request) {
@@ -774,6 +810,74 @@ class KaryaController extends Controller
         }
 
         return redirect()->route('peserta.daftar-karya')->with('success', 'Karya berhasil diarsipkan.')->setStatusCode(303);
+    }
+
+    public function destroyPermanent(Request $request, KaryaPeserta $karya)
+    {
+        $edisi = $this->resolveEdisiAktifOrFail();
+        // only allow permanent delete while pendaftaran is still open and for the same edition + owner/member
+        abort_unless($this->pendaftaranMasihDibuka($edisi), 403, 'Pendaftaran sudah ditutup.');
+
+        abort_unless(
+            $this->canAccessKarya($request, $karya) && (int) $karya->edisi_lomba_id === (int) $edisi->id,
+            403
+        );
+
+        abort_unless($karya->archived_at, 403, 'Karya belum diarsipkan.');
+
+        DB::transaction(function () use ($karya) {
+            foreach ($karya->lampiran()->get() as $lampiran) {
+                if (!empty($lampiran->path_file)) {
+                    Storage::disk('public')->delete($lampiran->path_file);
+                }
+                $lampiran->delete();
+            }
+
+            $karya->delete();
+        });
+
+        return redirect()->route('peserta.daftar-karya')->with('success', 'Karya berhasil dihapus permanen.')->setStatusCode(303);
+    }
+
+    public function destroyPermanentBulk(Request $request)
+    {
+        $user = $request->user();
+
+        // Find archived karya that belong to the user or where the user is a team member
+        $karyaList = KaryaPeserta::query()
+            ->with('lampiran', 'edisi')
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', (int) $user->id)
+                    ->orWhereRaw(
+                        "JSON_SEARCH(anggota_tim, 'one', ?, NULL, '$[*].email') IS NOT NULL",
+                        [$this->normalizedEmail($user->email)]
+                    );
+            })
+            ->whereNotNull('archived_at')
+            ->get();
+
+        $deleted = 0;
+
+        DB::transaction(function () use ($karyaList, &$deleted) {
+            foreach ($karyaList as $karya) {
+                // only allow bulk deletion for karya whose edition still allows registration
+                if (!$this->pendaftaranMasihDibuka($karya->edisi)) {
+                    continue;
+                }
+
+                foreach ($karya->lampiran as $lampiran) {
+                    if (!empty($lampiran->path_file)) {
+                        Storage::disk('public')->delete($lampiran->path_file);
+                    }
+                    $lampiran->delete();
+                }
+
+                $karya->delete();
+                $deleted++;
+            }
+        });
+
+        return redirect()->route('peserta.daftar-karya')->with('success', "Berhasil menghapus {$deleted} arsip.")->setStatusCode(303);
     }
 
     public function previewLampiran(Request $request, LampiranKaryaPeserta $lampiran)

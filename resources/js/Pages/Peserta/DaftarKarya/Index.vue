@@ -191,7 +191,7 @@ const isLangkahValid = computed(() => {
         const pembimbingLengkap =
             pembimbing.nama.trim().length > 0 &&
             pembimbing.nik.trim().length > 0 &&
-            /^[0-9]+$/.test(pembimbing.nik.trim()) &&
+            /^[0-9.]+$/.test(pembimbing.nik.trim()) &&
             /\S+@\S+\.\S+/.test(pembimbing.email.trim()) &&
             pembimbing.bidang.trim().length > 0;
         if (!pembimbingLengkap) return false;
@@ -201,7 +201,7 @@ const isLangkahValid = computed(() => {
         const semuaLengkap = form.value.anggotaTim.every(
             (item) =>
                 item.nim.trim().length > 0 &&
-                /^[0-9]+$/.test(item.nim.trim()) &&
+                /^[0-9.]+$/.test(item.nim.trim()) &&
                 item.nama.trim().length > 0 &&
                 /\S+@\S+\.\S+/.test(item.email.trim()),
         );
@@ -232,8 +232,8 @@ const validationMessage = computed(() => {
     if (langkahAktif.value === 2) {
         const pembimbing = form.value.dosenPembimbing;
         if (!pembimbing.nik.trim()) return "NIK dosen pembimbing wajib diisi.";
-        if (!/^[0-9]+$/.test(pembimbing.nik.trim()))
-            return "NIK hanya boleh angka.";
+        if (!/^[0-9.]+$/.test(pembimbing.nik.trim()))
+            return "NIK hanya boleh angka atau titik.";
         if (!pembimbing.nama.trim())
             return "Nama dosen pembimbing wajib diisi.";
         if (!pembimbing.email.trim())
@@ -247,8 +247,8 @@ const validationMessage = computed(() => {
 
         for (const anggota of form.value.anggotaTim) {
             if (!anggota.nim.trim()) return "NIM anggota wajib diisi.";
-            if (!/^[0-9]+$/.test(anggota.nim.trim()))
-                return "NIM hanya boleh angka.";
+            if (!/^[0-9.]+$/.test(anggota.nim.trim()))
+                return "NIM hanya boleh angka atau titik.";
             if (!anggota.nama.trim()) return "Nama anggota wajib diisi.";
             if (!anggota.email.trim()) return "Email anggota wajib diisi.";
             if (!/\S+@\S+\.\S+/.test(anggota.email.trim()))
@@ -364,10 +364,8 @@ const goNext = () => {
 
 const simpanDraft = () => {
     if (isReadOnly.value) return;
-    if (!isLangkahValid.value) {
-        return;
-    }
 
+    // Always persist any filled fields regardless of current step validity
     if ([1, 2, 3].includes(langkahAktif.value)) {
         saveStepDraft(langkahAktif.value, false);
     }
@@ -509,7 +507,7 @@ const submit = () => {
                             "
                             variant="outline"
                             class="w-full sm:w-auto"
-                            :disabled="!isLangkahValid || isSavingStep"
+                            :disabled="isSavingStep"
                             @click="simpanDraft"
                         >
                             <Spinner v-if="isSavingStep" class="h-4 w-4" />
@@ -542,9 +540,7 @@ const submit = () => {
                             <Spinner v-if="isSubmitting" class="h-4 w-4" />
                             <span v-else>
                                 {{
-                                    isEditMode || isFileLengkap
-                                        ? "Simpan Perubahan"
-                                        : "Kirim"
+                                    isFileLengkap ? "Simpan Perubahan" : "Kirim"
                                 }}
                             </span>
                         </Button>

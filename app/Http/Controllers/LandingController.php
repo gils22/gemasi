@@ -434,8 +434,8 @@ class LandingController extends Controller
                 return [
                     $edisi->id => $timelinePengumuman ? [
                         'judul' => $timelinePengumuman->judul,
-                        'mulai_pada' => $timelinePengumuman->mulai_pada?->format('d M Y'),
-                        'selesai_pada' => $timelinePengumuman->selesai_pada?->format('d M Y'),
+                        'mulai_pada' => $timelinePengumuman->mulai_pada?->toIso8601String(),
+                        'selesai_pada' => $timelinePengumuman->selesai_pada?->toIso8601String(),
                         'is_tba' => (bool) $timelinePengumuman->is_tba,
                     ] : null,
                 ];

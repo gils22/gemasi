@@ -99,8 +99,8 @@ const waError = computed(() => {
             </label>
             <Input
                 v-model="form.namaKarya"
-                :class="['bg-white', namaError ? 'border-rose-500 ring-rose-500' : '']"
-                :disabled="readOnly"
+                :class="['bg-white select-text', namaError ? 'border-rose-500 ring-rose-500' : '']"
+                :readonly="readOnly"
                 placeholder="Contoh: Sistem Informasi X"
                 @blur="touched.namaKarya = true"
                 @input="touched.namaKarya = true"
@@ -117,8 +117,8 @@ const waError = computed(() => {
             </label>
             <Input
                 v-model="form.waKetua"
-                :class="['bg-white', waError ? 'border-rose-500 ring-rose-500' : '']"
-                :disabled="readOnly"
+                :class="['bg-white select-text', waError ? 'border-rose-500 ring-rose-500' : '']"
+                :readonly="readOnly"
                 placeholder="Contoh: 0899xxxxxxxx"
                 inputmode="numeric"
                 type="tel"

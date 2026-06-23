@@ -306,8 +306,14 @@ Route::middleware(['auth', 'role:peserta'])
             ->name('peserta.daftar-karya.proposal.preview');
         Route::get('/daftar-karya/lampiran/{lampiran}/preview', [KaryaController::class, 'previewLampiran'])
             ->name('peserta.daftar-karya.lampiran.preview');
+        Route::get('/daftar-karya/{karya}', [KaryaController::class, 'show'])
+            ->name('peserta.daftar-karya.show');
         Route::delete('/daftar-karya/{karya}', [KaryaController::class, 'destroy'])
             ->name('peserta.daftar-karya.destroy');
+        Route::delete('/daftar-karya/{karya}/permanen', [KaryaController::class, 'destroyPermanent'])
+            ->name('peserta.daftar-karya.destroyPermanent');
+        Route::delete('/daftar-karya/permanen', [KaryaController::class, 'destroyPermanentBulk'])
+            ->name('peserta.daftar-karya.destroyPermanentBulk');
         Route::patch('/daftar-karya/{karya}/restore', [KaryaController::class, 'restore'])
             ->name('peserta.daftar-karya.restore');
         Route::get('/karya-terdaftar', function () {

@@ -7,6 +7,7 @@ use App\Models\Edition;
 use App\Models\KaryaPeserta;
 use App\Models\PemenangKarya;
 use App\Models\LampiranKaryaPeserta;
+use App\Services\NominationAnnouncementService;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
 
@@ -31,6 +32,11 @@ class ArsipController extends Controller
 
             return $this->normalizedEmail($anggota['email'] ?? null) === $email;
         });
+    }
+
+    private function nominationVisibleForKarya(KaryaPeserta $karya): bool
+    {
+        return app(NominationAnnouncementService::class)->isAnnouncementWindowOpenForEdition((int) $karya->edisi_lomba_id);
     }
 
     public function index(Request $request)
@@ -82,6 +88,7 @@ class ArsipController extends Controller
                     ->where('karya_peserta_id', $item->id)
                     ->orderBy('peringkat')
                     ->first();
+                $nominasiTerbuka = $this->nominationVisibleForKarya($item);
                 $lampiran = $item->lampiran()
                     ->orderBy('urutan')
                     ->get()
@@ -111,7 +118,7 @@ class ArsipController extends Controller
                     'updated_at' => optional($item->updated_at)->format('d M Y, H:i'),
                     'edisi_label' => optional($item->edisi)->nama ?? '-',
                     'is_juara' => (bool) $pemenang,
-                    'is_nominasi' => (bool) $item->lolos_nominasi && ! $pemenang,
+                    'is_nominasi' => $nominasiTerbuka && (bool) $item->lolos_nominasi && ! $pemenang,
                     'peringkat' => $pemenang?->peringkat,
                     'pameran_logo_name' => $item->pameran_logo_nama_asli,
                     'pameran_logo_url' => $item->pameran_logo_path
@@ -150,6 +157,7 @@ class ArsipController extends Controller
             ->where('karya_peserta_id', $karya->id)
             ->orderBy('peringkat')
             ->first();
+        $nominasiTerbuka = $this->nominationVisibleForKarya($karya);
 
         return Inertia::render('Peserta/Arsip/Detail', [
             'karya' => [
@@ -159,11 +167,12 @@ class ArsipController extends Controller
                 'edisi_label' => optional($karya->edisi)->nama . ' (' . optional($karya->edisi)->tahun . ')',
                 'status_tampilan' => $karya->status === 'submitted' ? 'Lengkap' : 'Tahap 1 tersimpan',
                 'is_juara' => (bool) $pemenang,
-                'is_nominasi' => (bool) $karya->lolos_nominasi && ! $pemenang,
+                'is_nominasi' => $nominasiTerbuka && (bool) $karya->lolos_nominasi && ! $pemenang,
                 'peringkat' => $pemenang?->peringkat,
                 'wa_ketua' => $karya->wa_ketua,
                 'dosen_pembimbing' => $karya->dosen_pembimbing,
                 'proposal_link' => $karya->proposal_path,
+                'link_tambahan' => $karya->link_tambahan ?? [],
                 'anggota_tim' => $anggota->values(),
                 'lampiran' => $karya->lampiran->map(fn (LampiranKaryaPeserta $item) => [
                     'id' => $item->id,

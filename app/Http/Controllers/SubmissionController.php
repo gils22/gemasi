@@ -6,6 +6,7 @@ use App\Models\Edition;
 use App\Models\KaryaPeserta;
 use App\Models\LampiranKaryaPeserta;
 use App\Models\KategoriLomba;
+use App\Services\NominationAnnouncementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -82,14 +83,19 @@ class SubmissionController extends Controller
             || $this->isCurrentUserMemberOfKarya($karya, $user->email);
     }
 
-    private function transformSubmission(KaryaPeserta $item, string $prefix): array
+    private function isNominationVisibleForEdition(Edition $edisi): bool
+    {
+        return app(NominationAnnouncementService::class)->isAnnouncementWindowOpenForEdition((int) $edisi->id);
+    }
+
+    private function transformSubmission(KaryaPeserta $item, string $prefix, bool $nominationVisible = true): array
     {
         return [
             'id' => $item->id,
             'nama_karya' => $item->nama_karya,
             'nama_kategori' => $item->nama_kategori,
             'status' => $item->status,
-            'is_lolos_nominasi' => (bool) $item->lolos_nominasi,
+            'is_lolos_nominasi' => (bool) $item->lolos_nominasi && $nominationVisible,
             'submitted_at' => $item->submitted_at?->format('d M Y, H:i'),
             'updated_at' => $item->updated_at?->format('d M Y, H:i'),
             'wa_ketua' => $item->wa_ketua,
@@ -160,6 +166,9 @@ class SubmissionController extends Controller
         $edisi = $this->resolveEdisiKonteks($request);
         $bolehKelola = $this->bolehKelola($request, (int) $edisi->id);
         $prefix = (string) $request->segment(1);
+        $nominationVisible = $request->user()?->hasRole('admin')
+            ? true
+            : $this->isNominationVisibleForEdition($edisi);
 
         $query = KaryaPeserta::query()
             ->with(['peserta:id,name,email,avatar', 'lampiran:id,karya_peserta_id'])
@@ -184,7 +193,7 @@ class SubmissionController extends Controller
         $data = $query
             ->orderByDesc('updated_at')
             ->get()
-            ->map(fn (KaryaPeserta $item) => $this->transformSubmission($item, $prefix))
+            ->map(fn (KaryaPeserta $item) => $this->transformSubmission($item, $prefix, $nominationVisible))
             ->values();
 
         return Inertia::render('Submission/Index', [

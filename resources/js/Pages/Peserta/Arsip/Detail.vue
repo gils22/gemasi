@@ -27,6 +27,7 @@ type DetailKarya = {
         bidang?: string;
     } | null;
     proposal_link?: string | null;
+    link_tambahan?: Array<{ label?: string; url?: string }>;
     anggota_tim?: Array<{
         nama?: string;
         nim?: string;
@@ -52,6 +53,20 @@ defineOptions({
 
 const page = usePage<PageProps & { karya: DetailKarya }>();
 const karya = computed(() => page.props.karya);
+const lampiranTambahan = computed(() => {
+    const data = karya.value.link_tambahan ?? [];
+    return data
+        .map((item) => {
+            if (typeof item === "string") {
+                return { label: "", url: item.trim() };
+            }
+            return {
+                label: item?.label ?? "",
+                url: item?.url ?? "",
+            };
+        })
+        .filter((item) => item.url.length > 0);
+});
 const activeTab = ref<"lampiran" | "pameran">("lampiran");
 
 const editOpen = ref(false);
@@ -209,6 +224,21 @@ const labelJuara = computed(() => {
                         </a>
                         <span v-else class="font-medium text-slate-900">-</span>
                     </p>
+                    <div class="space-y-2">
+                        <p class="text-sm text-slate-600">Lampiran:</p>
+                        <div v-if="lampiranTambahan.length" class="space-y-2">
+                            <a
+                                v-for="(item, index) in lampiranTambahan"
+                                :key="`${item.url ?? index}-${index}`"
+                                :href="item.url"
+                                target="_blank"
+                                class="block rounded-lg border border-slate-200 px-3 py-2 text-sm text-indigo-600 hover:bg-slate-50"
+                            >
+                                {{ item.label || item.url || "Lampiran" }}
+                            </a>
+                        </div>
+                        <span v-else class="font-medium text-slate-900">-</span>
+                    </div>
                 </div>
 
                 <div class="rounded-lg border border-slate-200 p-4 space-y-2">

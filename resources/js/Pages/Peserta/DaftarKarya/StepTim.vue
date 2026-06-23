@@ -182,8 +182,8 @@ const hapusAnggota = (index: number) => {
                     <div class="md:col-span-2">
                         <Input
                             v-model="form.dosenPembimbing.nik"
-                            :class="['bg-white', pembimbingErrors.nik ? 'border-rose-500 ring-rose-500' : '']"
-                            :disabled="readOnly"
+                            :class="['bg-white select-text', pembimbingErrors.nik ? 'border-rose-500 ring-rose-500' : '']"
+                            :readonly="readOnly"
                             placeholder="NIK"
                             inputmode="numeric"
                             type="text"
@@ -201,8 +201,8 @@ const hapusAnggota = (index: number) => {
                     <div class="md:col-span-3">
                         <Input
                             v-model="form.dosenPembimbing.nama"
-                            :class="['bg-white', pembimbingErrors.nama ? 'border-rose-500 ring-rose-500' : '']"
-                            :disabled="readOnly"
+                            :class="['bg-white select-text', pembimbingErrors.nama ? 'border-rose-500 ring-rose-500' : '']"
+                            :readonly="readOnly"
                             placeholder="Nama"
                             @blur="touchedPembimbing.nama = true"
                             @input="touchedPembimbing.nama = true"
@@ -214,8 +214,8 @@ const hapusAnggota = (index: number) => {
                     <div class="md:col-span-4">
                         <Input
                             v-model="form.dosenPembimbing.email"
-                            :class="['bg-white', pembimbingErrors.email ? 'border-rose-500 ring-rose-500' : '']"
-                            :disabled="readOnly"
+                            :class="['bg-white select-text', pembimbingErrors.email ? 'border-rose-500 ring-rose-500' : '']"
+                            :readonly="readOnly"
                             placeholder="Email Amikom"
                             type="email"
                             @blur="touchedPembimbing.email = true"
@@ -228,8 +228,8 @@ const hapusAnggota = (index: number) => {
                     <div class="md:col-span-3">
                         <Input
                             v-model="form.dosenPembimbing.bidang"
-                            :class="['bg-white', pembimbingErrors.bidang ? 'border-rose-500 ring-rose-500' : '']"
-                            :disabled="readOnly"
+                            :class="['bg-white select-text', pembimbingErrors.bidang ? 'border-rose-500 ring-rose-500' : '']"
+                            :readonly="readOnly"
                             placeholder="Bidang pembimbingan"
                             @blur="touchedPembimbing.bidang = true"
                             @input="touchedPembimbing.bidang = true"
@@ -263,8 +263,8 @@ const hapusAnggota = (index: number) => {
                     <div class="md:col-span-2">
                         <Input
                             v-model="anggota.nim"
-                            :class="['bg-white', anggotaErrors[index]?.nim ? 'border-rose-500 ring-rose-500' : '']"
-                            :disabled="readOnly"
+                            :class="['bg-white select-text', anggotaErrors[index]?.nim ? 'border-rose-500 ring-rose-500' : '']"
+                            :readonly="readOnly"
                             placeholder="NIM"
                             inputmode="numeric"
                             type="text"
@@ -282,8 +282,8 @@ const hapusAnggota = (index: number) => {
                     <div class="md:col-span-3">
                         <Input
                             v-model="anggota.nama"
-                            :class="['bg-white', anggotaErrors[index]?.nama ? 'border-rose-500 ring-rose-500' : '']"
-                            :disabled="readOnly"
+                            :class="['bg-white select-text', anggotaErrors[index]?.nama ? 'border-rose-500 ring-rose-500' : '']"
+                            :readonly="readOnly"
                             placeholder="Nama"
                             @blur="touchedAnggota[index].nama = true"
                             @input="touchedAnggota[index].nama = true"
@@ -295,8 +295,8 @@ const hapusAnggota = (index: number) => {
                     <div class="md:col-span-4">
                         <Input
                             v-model="anggota.email"
-                            :class="['bg-white', anggotaErrors[index]?.email ? 'border-rose-500 ring-rose-500' : '']"
-                            :disabled="readOnly"
+                            :class="['bg-white select-text', anggotaErrors[index]?.email ? 'border-rose-500 ring-rose-500' : '']"
+                            :readonly="readOnly"
                             placeholder="Email Amikom"
                             type="email"
                             @blur="touchedAnggota[index].email = true"

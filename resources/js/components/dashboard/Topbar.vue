@@ -119,7 +119,7 @@ const notifications = computed(() => {
     const items: Array<{
         title: string;
         description: string;
-        tone: "success" | "error" | "welcome";
+        tone: "success" | "error" | "welcome" | "info";
     }> = [];
 
     if (flash.value.welcome) {
@@ -146,12 +146,29 @@ const notifications = computed(() => {
         });
     }
 
+    if (flash.value.nominasi) {
+        const nominasiItems = Array.isArray(flash.value.nominasi)
+            ? flash.value.nominasi
+            : [flash.value.nominasi];
+
+        nominasiItems
+            .filter(Boolean)
+            .forEach((namaKarya: string) => {
+                items.push({
+                    title: "Pengumuman Nominasi",
+                    description: `Selamat! Karyamu "${namaKarya}" lolos masuk nominasi.`,
+                    tone: "info",
+                });
+            });
+    }
+
     return items;
 });
 
-const notificationToneClass = (tone: "success" | "error" | "welcome") => {
+const notificationToneClass = (tone: "success" | "error" | "welcome" | "info") => {
     if (tone === "success") return "bg-emerald-50 text-emerald-700";
     if (tone === "error") return "bg-rose-50 text-rose-700";
+    if (tone === "info") return "bg-indigo-50 text-indigo-700";
     return "bg-indigo-50 text-indigo-700";
 };
 

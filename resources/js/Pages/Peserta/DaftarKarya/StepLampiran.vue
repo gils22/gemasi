@@ -1,5 +1,6 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+import { usePage } from "@inertiajs/vue3";
 import { ExternalLink, Info, X } from "lucide-vue-next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,27 @@ const props = defineProps<{
     readOnly?: boolean;
     errors?: Record<string, string | undefined>;
 }>();
+
+const page = usePage();
+const currentUserEmail = computed(() => page.props.auth?.user?.email ?? null);
+
+const isCurrentUserAnggota = computed(() => {
+    try {
+        const list = props.form.anggotaTim ?? [];
+        return list.some((a: any) => {
+            const email = String(a?.email ?? "")
+                .trim()
+                .toLowerCase();
+            return (
+                email &&
+                currentUserEmail.value &&
+                email === String(currentUserEmail.value).trim().toLowerCase()
+            );
+        });
+    } catch {
+        return false;
+    }
+});
 
 const buildCopyUrl = (raw: string) => {
     const trimmed = raw?.trim();
@@ -117,6 +139,52 @@ const proposalTerisi = computed(
     () => String(props.form.proposalLink ?? "").trim().length > 0,
 );
 
+const normalizeForCompare = (raw: string) => {
+    let v = String(raw ?? "").trim();
+    if (!v) return "";
+    if (v.startsWith("//")) v = `https:${v}`;
+    if (!/^https?:\/\//i.test(v)) v = `https://${v}`;
+    try {
+        const u = new URL(v);
+        // Strip common trailing view/edit segments and ignore query for comparison
+        let pathname = u.pathname.replace(
+            /\/(edit|view|preview|copy)(\/.*)?$/i,
+            "",
+        );
+        pathname = pathname.replace(/\/+$/, "");
+        return `${u.origin}${pathname}`.toLowerCase();
+    } catch {
+        return v.toLowerCase();
+    }
+};
+
+const lampiranLinks = computed(() => {
+    const raw = props.form.linkTambahan ?? [];
+    const items = raw
+        .map((i: any) => ({
+            url: String(i?.url ?? "").trim(),
+            label: String(i?.label ?? "").trim(),
+        }))
+        .filter((i: any) => i.url.length > 0);
+
+    const seen = new Set<string>();
+    const proposalKey = normalizeForCompare(props.form.proposalLink ?? "");
+
+    const out: Array<{ url: string; label: string }> = [];
+    for (const it of items) {
+        const key = normalizeForCompare(it.url);
+        if (!key) continue;
+        if (key === proposalKey) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        let href = it.url;
+        if (href.startsWith("//")) href = `https:${href}`;
+        if (!/^https?:\/\//i.test(href)) href = `https://${href}`;
+        out.push({ url: href, label: it.label || it.url });
+    }
+    return out;
+});
+
 const touched = reactive({
     proposalLink: false,
 });
@@ -184,7 +252,7 @@ const openProposal = () => {
                         Proposal wajib diunggah melalui link Google Docs/Drive
                         menggunakan template yang tersedia. Lampiran pendukung
                         seperti gambar, PDF, PPT, video, website, Figma, atau
-                        dokumen lainnya dapat dicantumkan pada Link Lampiran.
+                        dokumen lainnya dapat dicantumkan pada Lampiran.
                         Pastikan setiap link dapat diakses oleh juri dengan
                         pengaturan akses "Anyone with the link".
                     </p>
@@ -219,8 +287,9 @@ const openProposal = () => {
                             proposalError
                                 ? 'border-rose-500 ring-rose-500'
                                 : '',
+                            'select-text',
                         ]"
-                        :disabled="readOnly"
+                        :readonly="readOnly"
                         placeholder="Tempel link proposal (Google Docs/Drive)"
                         type="url"
                         inputmode="url"
@@ -263,20 +332,23 @@ const openProposal = () => {
 
         <div class="space-y-3">
             <label class="text-sm font-medium text-slate-700">
-                Link Lampiran (opsional)
+                Lampiran (opsional)
             </label>
 
-            <Textarea
-                v-model="linkTambahanText"
-                :disabled="readOnly"
-                rows="5"
-                class="min-h-[140px]"
-                placeholder="Masukkan link lampiran, Pisahkan setiap link dengan Enter.
+            <div class="space-y-2">
+                <Textarea
+                    v-model="linkTambahanText"
+                    rows="5"
+                    class="min-h-[140px] selection:text-slate-900 select-text"
+                    :readonly="readOnly"
+                    :class="readOnly ? 'bg-slate-50' : ''"
+                    placeholder="Masukkan link lampiran, pisahkan setiap link dengan Enter.
 
 https://drive.google.com/...
 https://youtube.com/...
 https://www.figma.com/..."
-            />
+                />
+            </div>
         </div>
     </div>
 
@@ -285,8 +357,9 @@ https://www.figma.com/..."
             <DialogHeader>
                 <DialogTitle>Preview Template Proposal</DialogTitle>
                 <DialogDescription>
-                    Pratinjau template proposal dari admin.
-                </DialogDescription>
+                    Pratinjau template proposal yang dapat Anda salin melalui
+                    link.</DialogDescription
+                >
             </DialogHeader>
             <div class="space-y-3">
                 <iframe
@@ -302,7 +375,7 @@ https://www.figma.com/..."
                     class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700"
                 >
                     Preview tidak tersedia. Pastikan akses file diatur ke
-                    “Anyone with the link”.
+                    "Anyone with the link".
                 </div>
             </div>
         </DialogContent>
@@ -330,7 +403,7 @@ https://www.figma.com/..."
                     class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700"
                 >
                     Preview tidak tersedia. Pastikan akses link diatur ke
-                    “Anyone with the link”.
+                    "Anyone with the link".
                 </div>
             </div>
         </DialogContent>
